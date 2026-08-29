@@ -1,0 +1,44 @@
+{
+  "name": "@answerlens/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "next lint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@answerlens/extraction": "workspace:*",
+    "@answerlens/grading": "workspace:*",
+    "@answerlens/mapping": "workspace:*",
+    "@answerlens/pipeline": "workspace:*",
+    "@answerlens/providers": "workspace:*",
+    "@answerlens/types": "workspace:*",
+    "clsx": "^2.1.1",
+    "framer-motion": "^13.1.1",
+    "lucide-react": "^1.35.0",
+    "next": "16.3.3",
+    "pdfjs-dist": "^4.10.38",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "sonner": "^2.0.8",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^3.23.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/pdfjs-dist": "^2.10.378",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.0.0",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^2.0.0"
+  },
+  "packageManager": "pnpm@11.24.0"
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@answerlens/extraction",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@answerlens/types": "workspace:*",
+    "@answerlens/providers": "workspace:*",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "vitest": "^2.0.0"
+  }
+}

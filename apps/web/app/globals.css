@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+/* ── Design tokens ─────────────────────────────── */
+:root {
+  /* Surfaces */
+  --surface-page:        #d8d7d7;
+  --surface-app:         #f0eeee;
+  --surface-pane:        #f4f4f4;
+  --surface-card:        #ffffff;
+  --surface-sunken:      #f6f6f6;
+  --surface-muted:       #f0f0f0;
+  --surface-dark:        #303030;
+  --surface-dark-raised: #444444;
+
+  /* Borders */
+  --border-hairline: #e2e2e2;
+  --border-dashed:   #cfcccc;
+
+  /* Accent */
+  --accent:       #ff5623;
+  --accent-focus: #ff8d36;
+  --accent-soft:  #f5e5db;
+  --accent-tint:  #efe4dc;
+
+  /* Text */
+  --text-body:   #303030;
+  --text-meta:   #6b6b6b;
+  --text-muted:  #8a8a8a;
+  --text-helper: #9a9a9a;
+
+  /* Highlight */
+  --hl-border: #3ad018;
+  --hl-fill:   rgba(52,172,21,0.22);
+  --hl-label:  #34ac15;
+
+  /* Scoring */
+  --score-full-bg:     #edf8ea;
+  --score-full-text:   #34ac15;
+  --score-partial-bg:  #fff5e6;
+  --score-partial-text:#e3600f;
+  --score-zero-bg:     #ffe9e2;
+  --score-zero-text:   #c0350a;
+
+  /* Radii */
+  --radius-pill:     999px;
+  --radius-card:     12px;
+  --radius-pane:     20px;
+  --radius-tile:     10px;
+  --radius-dropzone: 16px;
+
+  /* Elevation — exactly two allowed */
+  --shadow-card:   0 1px 2px rgba(0,0,0,0.04), 0 1px 8px rgba(0,0,0,0.04);
+  --shadow-button: 0 2px 8px rgba(0,0,0,0.12);
+}
+
+/* ── Tailwind theme extension ──────────────────── */
+@theme inline {
+  --font-sans: var(--font-bricolage);
+
+  --color-surface-page:        var(--surface-page);
+  --color-surface-app:         var(--surface-app);
+  --color-surface-pane:        var(--surface-pane);
+  --color-surface-card:        var(--surface-card);
+  --color-surface-sunken:      var(--surface-sunken);
+  --color-surface-muted:       var(--surface-muted);
+  --color-surface-dark:        var(--surface-dark);
+  --color-surface-dark-raised: var(--surface-dark-raised);
+
+  --color-border-hairline: var(--border-hairline);
+  --color-border-dashed:   var(--border-dashed);
+
+  --color-accent:       var(--accent);
+  --color-accent-focus: var(--accent-focus);
+  --color-accent-soft:  var(--accent-soft);
+  --color-accent-tint:  var(--accent-tint);
+
+  --color-text-body:   var(--text-body);
+  --color-text-meta:   var(--text-meta);
+  --color-text-muted:  var(--text-muted);
+  --color-text-helper: var(--text-helper);
+
+  --color-hl-border: var(--hl-border);
+  --color-hl-label:  var(--hl-label);
+}
+
+/* ── Base ──────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+
+body {
+  background: var(--surface-page);
+  color: var(--text-body);
+  font-family: var(--font-bricolage), system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 22px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* First-letter underline motif */
+.first-letter-underline::first-letter {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Motion reduction */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
