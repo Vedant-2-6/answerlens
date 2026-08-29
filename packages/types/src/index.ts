@@ -113,7 +113,7 @@ export interface GradingResult {
   feedback: string;           // max 2 sentences, deterministic from rubric verdicts
   rubricVerdicts: RubricVerdict[];
   suppressed: boolean;        // true when mapping.confidence < 0.50 (grading skipped)
-  provisional: true;          // always true — shown in UI without exception
+  provisional: boolean;       // always true in raw results, toggled later in UI
 }
 
 export interface PaperSummary {

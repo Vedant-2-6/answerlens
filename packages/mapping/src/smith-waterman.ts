@@ -8,13 +8,37 @@ export interface AlignmentResult {
 }
 
 export function tokenize(text: string): string[] {
-  return text.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
+  return text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix = Array.from({ length: a.length + 1 }, () => new Int32Array(b.length + 1));
+  for (let i = 0; i <= a.length; i++) matrix[i]![0] = i;
+  for (let j = 0; j <= b.length; j++) matrix[0]![j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        matrix[i]![j] = matrix[i - 1]![j - 1]!;
+      } else {
+        matrix[i]![j] = Math.min(
+          matrix[i - 1]![j - 1]! + 1,
+          matrix[i]![j - 1]! + 1,
+          matrix[i - 1]![j]! + 1
+        );
+      }
+    }
+  }
+  return matrix[a.length]![b.length]!;
 }
 
 function fuzzyMatch(a: string, b: string): number {
   if (a === b) return 1.0;
-  if (a.includes(b) || b.includes(a)) return 0.8;
-  return 0.0;
+  const dist = levenshtein(a, b);
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 0;
+  return 1 - (dist / maxLen);
 }
 
 export function smithWaterman(windowTokens: string[], blockTokens: string[]): AlignmentResult {
@@ -26,16 +50,16 @@ export function smithWaterman(windowTokens: string[], blockTokens: string[]): Al
 
   let prevRow = new Int32Array(m + 1);
   let currRow = new Int32Array(m + 1);
-  const traceback = new Uint8Array((n + 1) * (m + 1));
+  const traceback = Array.from({ length: n + 1 }, () => new Uint8Array(m + 1));
   
   let maxScore = 0;
   let maxI = 0;
   let maxJ = 0;
 
   for (let i = 1; i <= n; i++) {
-    const w = windowTokens[i - 1] as string;
+    const w = windowTokens[i - 1]!;
     for (let j = 1; j <= m; j++) {
-      const b = blockTokens[j - 1] as string;
+      const b = blockTokens[j - 1]!;
       
       const fuzzyScore = fuzzyMatch(w, b);
       let matchCost = Number(SW_MISMATCH);
@@ -54,7 +78,7 @@ export function smithWaterman(windowTokens: string[], blockTokens: string[]): Al
       if (left > score) { score = left; dir = 3; }
 
       currRow[j] = score;
-      traceback[i * (m + 1) + j] = dir;
+      traceback[i]![j] = dir;
 
       if (score > maxScore) {
         maxScore = score;
@@ -71,8 +95,8 @@ export function smithWaterman(windowTokens: string[], blockTokens: string[]): Al
   let j = maxJ;
   let matchedCount = 0;
 
-  while (i > 0 && j > 0 && traceback[i * (m + 1) + j] !== 0) {
-    const dir = traceback[i * (m + 1) + j];
+  while (i > 0 && j > 0 && traceback[i]![j] !== 0) {
+    const dir = traceback[i]![j];
     if (dir === 1) {
       matchedIndices.unshift(i - 1);
       matchedCount++;

@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 export * from "./constants";
 export * from "./smith-waterman";
 export * from "./hungarian";
@@ -26,7 +26,7 @@ export function computeCostMatrix(
   for (let i = 0; i < size; i++) {
     for (let j = 0; j < size; j++) {
       if (i < numQuestions && j < numGroups) {
-        matrix[i]![j] = 1 - scores[i]![j]!;
+        matrix[i]![j] = 1 - (scores[i]?.[j] ?? 0);
       } else if (i < numQuestions && j >= numGroups) {
         matrix[i]![j] = 1 - THETA_UNANSWERED;
       } else if (i >= numQuestions && j < numGroups) {

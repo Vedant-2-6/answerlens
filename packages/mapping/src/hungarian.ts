@@ -1,10 +1,12 @@
-// @ts-nocheck
 // Simple Munkres (Hungarian) Algorithm for O(N^3) assignment
 // Cost matrix should be square.
 
 export function solveHungarian(costMatrix: number[][]): number[] {
   const n = costMatrix.length;
   if (n === 0) return [];
+  if (costMatrix[0]?.length !== n) {
+    throw new Error("Hungarian algorithm requires a perfectly square cost matrix.");
+  }
   
   // Clone to avoid mutation
   const C = costMatrix.map(row => [...row]);
@@ -21,20 +23,21 @@ export function solveHungarian(costMatrix: number[][]): number[] {
     const used = new Uint8Array(n + 1).fill(0);
     
     do {
-      used[j0!]! = 1;
-      const i0 = p[j0!]!;
+      used[j0] = 1;
+      const i0 = p[j0]!;
       let delta = Infinity;
       let j1 = 0;
       
       for (let j = 1; j <= n; j++) {
         if (!used[j]) {
-          const cur = C[i0! - 1]![j - 1]! - u[i0!]! - v[j]!;
-          if (cur < minv[j]!!) {
-            minv[j]!! = cur;
-            way[j]! = j0;
+          const cur = C[i0 - 1]![j - 1]! - u[i0]! - v[j]!;
+          // Use a small epsilon to avoid infinite loops due to IEEE 754 precision issues
+          if (cur < minv[j]! - 1e-12) {
+            minv[j] = cur;
+            way[j] = j0;
           }
-          if (minv[j]!! < delta) {
-            delta = minv[j]!!;
+          if (minv[j]! < delta) {
+            delta = minv[j]!;
             j1 = j;
           }
         }
@@ -43,22 +46,22 @@ export function solveHungarian(costMatrix: number[][]): number[] {
       for (let j = 0; j <= n; j++) {
         if (used[j]) {
           u[p[j]!] += delta;
-          v[j]! -= delta;
+          v[j] -= delta;
         } else {
-          minv[j]!! -= delta;
+          minv[j] -= delta;
         }
       }
       j0 = j1;
-    } while (p[j0!]! !== 0);
+    } while (p[j0] !== 0);
     
     do {
-      const j1 = way[j0];
-      p[j0!]! = p[j1];
+      const j1 = way[j0]!;
+      p[j0] = p[j1]!;
       j0 = j1;
     } while (j0 !== 0);
   }
   
-  const result = new Array(n);
+  const result = new Array<number>(n);
   for (let j = 1; j <= n; j++) {
     result[p[j]! - 1] = j - 1;
   }

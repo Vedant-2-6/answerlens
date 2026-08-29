@@ -156,7 +156,9 @@ export class PipelineOrchestrator {
       this.onEvent({ type: "STAGE_START", stage: "grading", total: allMappings.length });
       const allGradings: GradingResult[] = [];
       for (let i = 0; i < allMappings.length; i++) {
-        const gradeRes = await this.callApi("/api/grade", { mapping: allMappings[i] });
+        const mapping = allMappings[i]!;
+        const question = allQuestions.find(q => q.id === mapping.questionId);
+        const gradeRes = await this.callApi("/api/grade", { mapping, question });
         allGradings.push(gradeRes as GradingResult);
         this.onEvent({ type: "STAGE_PROGRESS", stage: "grading", completed: i + 1 });
       }

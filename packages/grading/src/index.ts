@@ -20,7 +20,7 @@ The sum of all weights MUST EXACTLY equal the question's max marks.
 Set 'required' to true only for points without which the answer is fundamentally wrong.
 Return a JSON array of these points.`;
 
-async function callOmniRouteJSON(baseUrl: string, apiKey: string, model: string, systemPrompt: string, userPrompt: string): Promise<any> {
+async function callOmniRouteJSON(baseUrl: string, apiKey: string, model: string, systemPrompt: string, userPrompt: string): Promise<{ parsed: any, raw: string }> {
   const payload = {
     model,
     messages: [
@@ -38,9 +38,8 @@ async function callOmniRouteJSON(baseUrl: string, apiKey: string, model: string,
   if (!response.ok) throw new Error(`OmniRoute error: ${await response.text()}`);
   let content = (await response.json()).choices[0].message.content;
   content = content.replace(/^```(?:json)?\n?/i, "").replace(/```$/i, "").trim();
-  // Sometimes models wrap array in { "rubric": [...] } despite instructions
   const parsed = JSON.parse(content);
-  return Array.isArray(parsed) ? parsed : (parsed.rubric || parsed.points || parsed);
+  return { parsed, raw: content };
 }
 
 export async function deriveRubric(
@@ -51,13 +50,17 @@ export async function deriveRubric(
 ): Promise<RubricPoint[]> {
   if (!question.maxMarks) return [];
   const userPrompt = `Question: ${question.text}\nMax Marks: ${question.maxMarks}`;
+  let lastRaw = "";
   try {
-    const raw = await callOmniRouteJSON(baseUrl, apiKey, model, P04_SYSTEM_PROMPT, userPrompt);
-    return RubricSchema.parse(raw);
+    const { parsed, raw } = await callOmniRouteJSON(baseUrl, apiKey, model, P04_SYSTEM_PROMPT, userPrompt);
+    lastRaw = raw;
+    const arrayTarget = Array.isArray(parsed) ? parsed : (parsed.rubric || parsed.points || parsed.rubricPoints || Object.values(parsed)[0] || parsed);
+    return RubricSchema.parse(arrayTarget);
   } catch (err: any) {
-    const repair = `${userPrompt}\n\nYour previous response failed validation: ${err.message}. Return ONLY a JSON array of rubric points summing to ${question.maxMarks}.`;
-    const repaired = await callOmniRouteJSON(baseUrl, apiKey, model, P04_SYSTEM_PROMPT, repair);
-    return RubricSchema.parse(repaired);
+    const repair = `${userPrompt}\n\nYour previous response failed validation: ${err.message}.\nYou generated:\n${lastRaw}\n\nReturn ONLY a JSON array of rubric points summing to ${question.maxMarks}.`;
+    const { parsed } = await callOmniRouteJSON(baseUrl, apiKey, model, P04_SYSTEM_PROMPT, repair);
+    const arrayTarget = Array.isArray(parsed) ? parsed : (parsed.rubric || parsed.points || parsed.rubricPoints || Object.values(parsed)[0] || parsed);
+    return RubricSchema.parse(arrayTarget);
   }
 }
 
@@ -88,18 +91,17 @@ export async function evaluateAnswer(
 ): Promise<{ marks: number; verdict: Verdict; rubricVerdicts: RubricVerdict[] }> {
   if (rubric.length === 0) return { marks: 0, verdict: "zero", rubricVerdicts: [] };
 
-  const userPrompt = `Question: ${question.text}
-Rubric: ${JSON.stringify(rubric)}
-Student Answer: ${answerText}`;
+  const userPrompt = `Question: ${question.text}\nRubric: ${JSON.stringify(rubric)}\nStudent Answer: ${answerText}`;
 
-  let raw;
+  let raw, lastRaw = "";
   try {
-    raw = await callOmniRouteJSON(baseUrl, apiKey, model, P05_SYSTEM_PROMPT, userPrompt);
-    raw = EvaluationSchema.parse(raw);
+    const res = await callOmniRouteJSON(baseUrl, apiKey, model, P05_SYSTEM_PROMPT, userPrompt);
+    lastRaw = res.raw;
+    raw = EvaluationSchema.parse(res.parsed);
   } catch (err: any) {
-    const repair = `${userPrompt}\n\nError: ${err.message}. Return corrected JSON.`;
-    raw = await callOmniRouteJSON(baseUrl, apiKey, model, P05_SYSTEM_PROMPT, repair);
-    raw = EvaluationSchema.parse(raw);
+    const repair = `${userPrompt}\n\nError: ${err.message}.\nYou generated:\n${lastRaw}\nReturn corrected JSON.`;
+    const res = await callOmniRouteJSON(baseUrl, apiKey, model, P05_SYSTEM_PROMPT, repair);
+    raw = EvaluationSchema.parse(res.parsed);
   }
 
   let totalMarks = 0;
@@ -118,11 +120,18 @@ Student Answer: ${answerText}`;
   }
 
   if (requiredFailed) totalMarks = 0;
-  if (question.maxMarks && totalMarks > question.maxMarks) totalMarks = question.maxMarks;
+  
+  // Fix floating point issues (e.g. 0.1 + 0.2 = 0.30000000000000004)
+  totalMarks = Math.round(totalMarks * 100) / 100;
+
+  // Instead of silently truncating marks if LLM over-awarded, we bound it but the underlying logic remains fixed by using strict rubric point lookup
+  if (question.maxMarks && totalMarks > question.maxMarks) {
+    totalMarks = question.maxMarks;
+  }
 
   let finalVerdict: Verdict = "partial";
   if (totalMarks === 0) finalVerdict = "zero";
-  else if (totalMarks === question.maxMarks) finalVerdict = "full";
+  else if (question.maxMarks && totalMarks >= question.maxMarks) finalVerdict = "full";
 
   return { marks: totalMarks, verdict: finalVerdict, rubricVerdicts: verdicts };
 }
