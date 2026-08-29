@@ -58,9 +58,16 @@ export function ProcessingScreen() {
         case 'STAGE_START':
           setStage(event.stage, { kind: 'running', completedPages: 0, totalPages: event.total || 1 });
           break;
-        case 'STAGE_PROGRESS':
-          setStage(event.stage, { kind: 'running', completedPages: event.completed, totalPages: 1 }); // this logic is simplified
+        case 'STAGE_PROGRESS': {
+          const currentStage = useSessionStore.getState().stages[event.stage];
+          const total = currentStage.kind === 'running' ? currentStage.totalPages : 1;
+          setStage(event.stage, { 
+            kind: 'running', 
+            completedPages: event.completed, 
+            totalPages: total
+          });
           break;
+        }
         case 'STAGE_DONE':
           setStage(event.stage, { kind: 'done', durationMs: event.durationMs });
           break;

@@ -49,30 +49,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing OmniRoute environment variables" }, { status: 500 });
     }
 
+    let result: any;
     if (process.env.USE_STUBS === "true") {
-      return NextResponse.json({
+      result = {
         pageIndex: page.pageIndex,
         pageEmpty: false,
         orientationSuspect: false,
-        blocks: [
-          {
-            index: 0,
-            kind: 'answer',
-            text: "Stub answer text",
-            label: "1",
-            note: null,
-            illegibleSpans: 0,
-            approxTopFraction: 0.1,
-            approxBottomFraction: 0.3,
-            continuedFromPrevious: false,
-            continuesToNextPage: false
-          }
-        ]
-      });
+        blocks: [{ text: "Stub answer text", approxTopFraction: 0, approxBottomFraction: 1, kind: "answer" }]
+      };
+    } else {
+      result = await extractAnswerPage(page as OcrPage, imageBase64, baseUrl, apiKey, model);
     }
 
-    const result = await extractAnswerPage(page as OcrPage, imageBase64, baseUrl, apiKey, model);
-    return NextResponse.json(result);
+    const transcription = (result.blocks || [])
+      .filter((b: any) => b.kind === "answer" || b.kind === "rough-work")
+      .map((b: any) => b.text)
+      .join("\n\n");
+
+    const approximate_regions = (result.blocks || [])
+      .filter((b: any) => b.kind === "answer" || b.kind === "rough-work")
+      .map((b: any) => ({
+        x: 0,
+        y: b.approxTopFraction,
+        w: 1,
+        h: Math.max(0.1, b.approxBottomFraction - b.approxTopFraction)
+      }));
+
+    return NextResponse.json({
+      pageIndex: page.pageIndex,
+      transcription,
+      approximate_regions
+    });
 
   } catch (error: any) {
     console.error("[POST /api/extract/answer-page] Error:", error);

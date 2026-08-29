@@ -48,8 +48,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Server configuration error: Missing OmniRoute environment variables" }, { status: 500 });
     }
 
+    let result: any;
     if (process.env.USE_STUBS === "true") {
-      return NextResponse.json({
+      result = {
         questions: [
           { labelRaw: "1.", parentLabel: null, depth: 0, text: "Stub question", marks: 2, answerable: true, uncertain: false, sourceLines: ["p1:l1"] }
         ],
@@ -57,11 +58,37 @@ export async function POST(req: Request) {
         choiceGroups: [],
         paperMaxMarks: 20,
         suspicious: []
-      });
+      };
+    } else {
+      result = await extractQuestions(pages as OcrPage[], baseUrl, apiKey, model);
     }
 
-    const result = await extractQuestions(pages as OcrPage[], baseUrl, apiKey, model);
-    return NextResponse.json(result);
+    // Transform QuestionCandidate to Question
+    const formattedQuestions = (result.questions || []).map((cand: any, idx: number) => {
+      // Parse page index from first source line (e.g. "p1:l1" -> 0-indexed page)
+      const pageIndexMatch = cand.sourceLines?.[0]?.match(/^p(\d+):l/);
+      const pageIndex = pageIndexMatch ? parseInt(pageIndexMatch[1], 10) - 1 : 0;
+      
+      const parentId = cand.parentLabel ? `Q-${cand.parentLabel.replace(/\s+/g, '-')}` : null;
+      // Derive a safe ID
+      let id = `Q-${cand.labelRaw.replace(/[^a-zA-Z0-9]/g, '-')}`;
+      if (parentId) id = `${parentId}-${cand.labelRaw.replace(/[^a-zA-Z0-9]/g, '-')}`;
+      
+      // Handle duplicates
+      id = `${id}-${idx}`;
+
+      return {
+        id,
+        labelRaw: cand.labelRaw,
+        text: cand.text,
+        maxMarks: cand.marks,
+        pageIndex: Math.max(0, pageIndex),
+        isSubPart: cand.depth > 0,
+        parentId
+      };
+    });
+
+    return NextResponse.json({ ...result, questions: formattedQuestions });
 
   } catch (error: any) {
     console.error("[POST /api/extract] Error:", error);
