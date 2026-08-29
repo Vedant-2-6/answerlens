@@ -31,6 +31,26 @@ export class PipelineOrchestrator {
 
   cancel() { this.isCancelled = true; }
 
+  private async asyncPool<T, R>(concurrency: number, items: T[], fn: (item: T) => Promise<R>): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    const executing: Set<Promise<void>> = new Set();
+    
+    let i = 0;
+    for (const item of items) {
+      if (this.isCancelled) throw new Error("Cancelled");
+      const index = i++;
+      const p = fn(item).then(res => { results[index] = res; });
+      executing.add(p);
+      
+      const clean = p.finally(() => executing.delete(p));
+      if (executing.size >= concurrency) {
+        await Promise.race(executing);
+      }
+    }
+    await Promise.all(executing);
+    return results;
+  }
+
   async run(questionFile: File, answerFile: File) {
     try {
       if (this.isCancelled) return;
@@ -68,10 +88,12 @@ export class PipelineOrchestrator {
         return { ocrPage: res as OcrPage, base64: p.base64 };
       };
 
-      const [qOcr, aOcr] = await Promise.all([
-        Promise.all(qPages.map(ocrPage)),
-        Promise.all(aPages.map(ocrPage)),
-      ]);
+      // Batch 3 concurrent calls to prevent exhausting browser sockets and API limits
+      const allPages = [...qPages, ...aPages];
+      const allOcrResults = await this.asyncPool(3, allPages, ocrPage);
+      
+      const qOcr = allOcrResults.slice(0, qPages.length);
+      const aOcr = allOcrResults.slice(qPages.length);
 
       this.onEvent({ type: "STAGE_DONE", stage: "ocr", durationMs: Math.round(performance.now() - t_ocr) });
       if (this.isCancelled) return;
@@ -164,7 +186,13 @@ export class PipelineOrchestrator {
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText);
+      let text = res.statusText;
+      try {
+        const bodyText = await res.text();
+        if (bodyText) text = bodyText;
+      } catch (e) {
+        // Stream already consumed or inaccessible
+      }
       throw new Error(`[${route}] ${res.status}: ${text}`);
     }
     return res.json();
