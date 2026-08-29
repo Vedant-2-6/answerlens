@@ -12,7 +12,7 @@ export interface RasterizedPage {
   height: number;
 }
 
-const MAX_LONG_EDGE = 1000;
+const MAX_LONG_EDGE = 800;
 const QUALITY = 0.85;
 
 export async function rasterizeFile(file: File): Promise<RasterizedPage[]> {
@@ -109,6 +109,9 @@ async function rasterizePdf(file: File): Promise<RasterizedPage[]> {
       width: scaledViewport.width,
       height: scaledViewport.height
     });
+
+    // Yield to the event loop so the UI isn't completely frozen for 40-page PDFs
+    await new Promise(r => setTimeout(r, 20));
   }
 
   return pages;

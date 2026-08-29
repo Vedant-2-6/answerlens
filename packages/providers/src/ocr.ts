@@ -1,4 +1,4 @@
-import Tesseract from "tesseract.js";
+import { createWorker, createScheduler, Scheduler } from "tesseract.js";
 import type { OcrPage, OcrWord } from "@answerlens/types";
 
 export interface OcrInput {
@@ -9,10 +9,32 @@ export interface OcrInput {
   height: number;
 }
 
+let sharedScheduler: Scheduler | null = null;
+let initPromise: Promise<Scheduler> | null = null;
+
+async function getScheduler(): Promise<Scheduler> {
+  if (sharedScheduler) return sharedScheduler;
+  if (initPromise) return initPromise;
+  
+  initPromise = (async () => {
+    const sched = createScheduler();
+    // 3 concurrent workers to match pipeline concurrency
+    for (let i = 0; i < 3; i++) {
+      const worker = await createWorker("eng");
+      sched.addWorker(worker);
+    }
+    sharedScheduler = sched;
+    return sched;
+  })();
+  
+  return initPromise;
+}
+
 export async function ocrPage({ imageBase64, pageIndex, width, height }: OcrInput): Promise<OcrPage> {
   const buffer = Buffer.from(imageBase64, "base64");
 
-  const { data } = await Tesseract.recognize(buffer, "eng");
+  const scheduler = await getScheduler();
+  const { data } = await scheduler.addJob("recognize", buffer);
 
   const imageWidth  = width || 1000;
   const imageHeight = height || 1000;
