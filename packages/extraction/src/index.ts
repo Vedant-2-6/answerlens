@@ -161,41 +161,61 @@ async function callOmniRouteJSON(
     response_format: { type: "json_object" }, stream: false
   };
 
-  const response = await fetch(`${omnirouteBaseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${omnirouteApiKey}`
-    },
-    body: JSON.stringify(payload)
-  });
+  let attempt = 0;
+  let lastError: Error | null = null;
+  while (attempt < 3) {
+    try {
+      const response = await fetch(`${omnirouteBaseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${omnirouteApiKey}`
+        },
+        body: JSON.stringify(payload)
+      });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`OmniRoute error ${response.status}: ${errText}`);
-  }
+      if (!response.ok) {
+        const errText = await response.text();
+        const err = new Error(`OmniRoute error ${response.status}: ${errText}`);
+        if (response.status >= 500 || response.status === 429) {
+          throw err; // will be caught and retried
+        }
+        throw err; // non-retryable 4xx
+      }
 
-    const responseText = await response.text();
-  let content = "";
-  try {
-    const json = JSON.parse(responseText);
-    content = json.choices[0].message.content;
-  } catch (e) {
-    // If it's an SSE stream anyway (OmniRoute quirk)
-    const lines = responseText.split("\n");
-    for (const line of lines) {
-      if (line.startsWith("data: ") && line !== "data: [DONE]") {
-        try {
-          const chunk = JSON.parse(line.slice(6));
-          if (chunk.choices?.[0]?.delta?.content) {
-            content += chunk.choices[0].delta.content;
+      const responseText = await response.text();
+      let content = "";
+      try {
+        const json = JSON.parse(responseText);
+        content = json.choices[0].message.content;
+      } catch (e) {
+        const lines = responseText.split("\n");
+        for (const line of lines) {
+          if (line.startsWith("data: ") && line !== "data: [DONE]") {
+            try {
+              const chunk = JSON.parse(line.slice(6));
+              if (chunk.choices?.[0]?.delta?.content) {
+                content += chunk.choices[0].delta.content;
+              }
+            } catch (err) {}
           }
-        } catch (err) {}
+        }
+      }
+      
+      content = content.replace(/^```(?:json)?\n?/i, "").replace(/```$/i, "").trim();
+      return JSON.parse(content);
+    } catch (err: any) {
+      lastError = err;
+      if (err.message.includes("OmniRoute error") && !err.message.includes("5") && !err.message.includes("429")) {
+        throw err; // 400s don't retry
+      }
+      attempt++;
+      if (attempt < 3) {
+        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
       }
     }
   }
-  
-  content = content.replace(/^```(?:json)?\n?/i, "").replace(/```$/i, "").trim();return JSON.parse(content);
+  throw lastError;
 }
 
 export async function extractQuestions(

@@ -3,8 +3,30 @@ import { z } from "zod";
 import { extractAnswerPage } from "@answerlens/extraction";
 import type { OcrPage } from "@answerlens/types";
 
+const NormRectSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  h: z.number(),
+});
+
+const OcrWordSchema = z.object({
+  text: z.string(),
+  box: NormRectSchema,
+  pageIndex: z.number(),
+  conf: z.number(),
+});
+
+const OcrPageSchema = z.object({
+  pageIndex: z.number(),
+  words: z.array(OcrWordSchema),
+  rawText: z.string(),
+  width: z.number(),
+  height: z.number(),
+});
+
 const AnswerRequestSchema = z.object({
-  page: z.any(),
+  page: OcrPageSchema,
   imageBase64: z.string()
 });
 

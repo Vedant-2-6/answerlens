@@ -82,6 +82,8 @@ export class PipelineOrchestrator {
           imageBase64: p.base64,
           mimeType: "image/png",
           pageIndex: p.pageIndex,
+          width: p.width,
+          height: p.height,
         });
         ocrDone++;
         this.onEvent({ type: "STAGE_PROGRESS", stage: "ocr", completed: ocrDone });

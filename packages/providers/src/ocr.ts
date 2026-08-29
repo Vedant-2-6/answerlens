@@ -5,24 +5,17 @@ export interface OcrInput {
   imageBase64: string;
   mimeType: "image/png" | "image/jpeg";
   pageIndex: number;
+  width: number;
+  height: number;
 }
 
-export async function ocrPage({ imageBase64, pageIndex }: OcrInput): Promise<OcrPage> {
+export async function ocrPage({ imageBase64, pageIndex, width, height }: OcrInput): Promise<OcrPage> {
   const buffer = Buffer.from(imageBase64, "base64");
 
   const { data } = await Tesseract.recognize(buffer, "eng");
 
-  // Derive canvas dimensions from the max bbox extents across all words
-  // (Tesseract does not expose image W/H directly on the Page object)
-  let maxX = 1;
-  let maxY = 1;
-  for (const w of data.words ?? []) {
-    if (w.bbox.x1 > maxX) maxX = w.bbox.x1;
-    if (w.bbox.y1 > maxY) maxY = w.bbox.y1;
-  }
-
-  const imageWidth  = maxX;
-  const imageHeight = maxY;
+  const imageWidth  = width || 1000;
+  const imageHeight = height || 1000;
 
   const words: OcrWord[] = (data.words ?? [])
     .filter((w) => w.text.trim().length > 0)
