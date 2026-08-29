@@ -43,15 +43,11 @@ export function ProcessingScreen() {
     }[activeStage] || "Processing...";
   }
 
-  const hasStarted = useRef(false);
-
   useEffect(() => {
-    if (hasStarted.current) return;
     if (!questionFile || !answerFile) {
       router.replace("/");
       return;
     }
-    hasStarted.current = true;
 
     const orchestrator = new PipelineOrchestrator((event) => {
       switch (event.type) {

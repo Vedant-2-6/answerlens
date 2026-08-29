@@ -106,8 +106,8 @@ async function rasterizePdf(file: File): Promise<RasterizedPage[]> {
     pages.push({
       pageIndex: i - 1, // 0-indexed
       base64: dataUrl.split(",")[1],
-      width: scaledViewport.width,
-      height: scaledViewport.height
+      width: Math.round(scaledViewport.width),
+      height: Math.round(scaledViewport.height)
     });
 
     // Yield to the event loop so the UI isn't completely frozen for 40-page PDFs
