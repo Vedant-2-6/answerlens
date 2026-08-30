@@ -71,6 +71,7 @@ export const useSessionStore = create<SessionState>()(
     (set) => ({
       questionFile: null,
       answerFile: null,
+      paperMaxMarks: null,
       questionPages: [],
       answerPages: [],
       setQuestionFile: (f) => set({ questionFile: f }),
