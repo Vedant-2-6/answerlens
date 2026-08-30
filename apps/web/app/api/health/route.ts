@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 /**
  * GET /api/health
@@ -21,19 +21,9 @@ export async function GET() {
       ocrStatus = "error";
     }
 
-    // Check LLM — ping OmniRoute models endpoint
+    // Check LLM — verify env variables are set
     if (!omniRouteUrl || !omniRouteKey) {
       llmStatus = "error";
-    } else {
-      try {
-        const res = await fetch(`${omniRouteUrl}/models`, {
-          headers: { Authorization: `Bearer ${omniRouteKey}` },
-          signal: AbortSignal.timeout(5000),
-        });
-        if (!res.ok) llmStatus = "error";
-      } catch {
-        llmStatus = "error";
-      }
     }
   }
 
