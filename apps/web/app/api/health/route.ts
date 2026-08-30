@@ -8,8 +8,8 @@
 export async function GET() {
   const useStubs = process.env.USE_STUBS === "true";
   const ocrProvider = process.env.OCR_PROVIDER ?? "tesseract";
-  const omniRouteUrl = process.env.OMNIROUTE_BASE_URL;
-  const omniRouteKey = process.env.OMNIROUTE_API_KEY;
+  const omniRouteUrl = process.env.AI_BASE_URL;
+  const omniRouteKey = process.env.AI_API_KEY;
 
   let ocrStatus: "ok" | "error" = "ok";
   let llmStatus: "ok" | "error" = "ok";

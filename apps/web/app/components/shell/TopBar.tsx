@@ -1,12 +1,22 @@
 "use client";
 import { ArrowLeft, ClipboardList, HelpCircle, Bell, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+import { useSessionStore } from "@/app/store/session";
 
 export function TopBar() {
+  const router = useRouter();
+  const reset = useSessionStore(state => state.reset);
+
   const handleDummyClick = (feature: string) => {
     toast.info(`${feature} is in development`, {
       description: "This is a premium feature scheduled for the next release.",
     });
+  };
+
+  const handleGoBack = () => {
+    reset();
+    router.push("/");
   };
 
   return (
@@ -14,7 +24,7 @@ export function TopBar() {
                        bg-surface-card rounded-[--radius-pane] shadow-[--shadow-card]">
       {/* Left: breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-text-muted">
-        <button onClick={() => handleDummyClick("Navigation")} aria-label="Go back" className="hover:text-text-body transition-colors">
+        <button onClick={handleGoBack} aria-label="Go back" className="hover:text-text-body transition-colors">
           <ArrowLeft size={16} />
         </button>
         <ClipboardList size={15} strokeWidth={1.7} />

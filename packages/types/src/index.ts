@@ -136,6 +136,7 @@ export interface Session {
   mappings: MappingResult[];
   gradings: GradingResult[];
   orphans: OrphanRegion[];
+  paperMaxMarks: number | null;
   stages: Record<StageKind, StageStatus>;
   mode: GradingMode; // derived once extraction completes
   createdAt: number; // Date.now()

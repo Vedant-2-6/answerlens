@@ -26,6 +26,18 @@ export function AnswerPane() {
       .catch(e => setError(e.message));
   }, [answerFile]);
 
+  // Auto-navigate to the page containing the selected question
+  useEffect(() => {
+    if (!selectedQuestionId) return;
+    const mapping = mappings.find(m => m.questionId === selectedQuestionId);
+    if (mapping && mapping.regions.length > 0) {
+      const targetPage = mapping.regions[0].pageIndex;
+      if (targetPage !== pageIndex && targetPage >= 0 && targetPage < pages.length) {
+        setPageIndex(targetPage);
+      }
+    }
+  }, [selectedQuestionId, mappings, pageIndex, pages.length]);
+
   const currentPage = pages[pageIndex];
 
   // Optimize mapping region lookup
@@ -86,9 +98,9 @@ export function AnswerPane() {
                 loading="lazy"
               />
               
-              {currentRegions.map(({ m, region, isFirst }) => (
+              {currentRegions.map(({ m, region, isFirst }, idx) => (
                 <MemoizedHighlightBox
-                  key={`${m.questionId}-${region.y}-${region.x}`}
+                  key={`${m.questionId}-region-${idx}`}
                   region={region}
                   label={isFirst ? `Q${m.questionId}` : undefined}
                   active={selectedQuestionId === m.questionId}

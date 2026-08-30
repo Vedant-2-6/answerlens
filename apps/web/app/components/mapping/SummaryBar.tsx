@@ -1,10 +1,17 @@
 "use client";
+import { useState, useRef, useEffect } from "react";
 import { useSessionStore } from "@/app/store/session";
+import { Sparkles, Pencil } from "lucide-react";
+import { ChatDrawer } from "./ChatDrawer";
 
 export function SummaryBar() {
-  const { questions, gradings } = useSessionStore();
+  const { questions, gradings, paperMaxMarks, setPaperMaxMarks } = useSessionStore();
+  const [chatOpen, setChatOpen] = useState(false);
+  const [isEditingMax, setIsEditingMax] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const totalMax = questions.reduce((sum, q) => sum + (q.maxMarks || 0), 0);
+  const totalMax = paperMaxMarks ?? questions.reduce((sum, q) => sum + (q.maxMarks || 0), 0);
+  const [tempMax, setTempMax] = useState(totalMax.toString());
   const totalScore = gradings.reduce((sum, g) => sum + (g.marks || 0), 0);
 
   const correct = gradings.filter(g => g.verdict === 'full').length;
@@ -13,7 +20,22 @@ export function SummaryBar() {
   const review = gradings.filter(g => g.suppressed).length;
   const unanswered = questions.length - gradings.length;
 
+  useEffect(() => {
+    setTempMax(totalMax.toString());
+  }, [totalMax]);
+
+  const handleSaveMax = () => {
+    setIsEditingMax(false);
+    const parsed = parseInt(tempMax, 10);
+    if (!isNaN(parsed) && parsed >= 0) {
+      setPaperMaxMarks(parsed);
+    } else {
+      setTempMax(totalMax.toString());
+    }
+  };
+
   return (
+    <>
     <div className="h-16 px-6 bg-surface-card border-b border-border-default flex items-center justify-between">
       <div className="flex items-center gap-4">
         <h1 className="text-xl font-bold text-text-body">Result Overview</h1>
@@ -28,12 +50,45 @@ export function SummaryBar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-text-meta">Total Marks:</span>
-        <span className="px-3 py-1 bg-accent/10 text-accent font-semibold rounded-md">
-          {totalScore} / {totalMax}
-        </span>
+      <div className="flex items-center gap-4">
+        <button 
+          onClick={() => setChatOpen(true)}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded bg-[#e8eaff] text-[#3341d3] border border-[#d2d6fa] shadow-sm hover:bg-[#d6daff] transition-colors"
+        >
+          <Sparkles size={16} />
+          Ask AI Assistant
+        </button>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-text-meta">Total Marks:</span>
+          <div className="flex items-center gap-1 px-3 py-1 bg-accent/10 text-accent font-semibold rounded-md">
+            <span>{totalScore} / </span>
+            {isEditingMax ? (
+              <input 
+                ref={inputRef}
+                type="number"
+                value={tempMax}
+                onChange={(e) => setTempMax(e.target.value)}
+                onBlur={handleSaveMax}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveMax()}
+                className="w-12 bg-white text-text-body px-1 py-0.5 rounded border border-border-default outline-none text-center"
+                autoFocus
+              />
+            ) : (
+              <span 
+                className="cursor-pointer hover:underline decoration-dashed flex items-center gap-1"
+                onClick={() => setIsEditingMax(true)}
+                title="Edit maximum marks"
+              >
+                {totalMax}
+                <Pencil size={12} className="opacity-50 hover:opacity-100" />
+              </span>
+            )}
+          </div>
+        </div>
       </div>
     </div>
+    
+    <ChatDrawer isOpen={chatOpen} onClose={() => setChatOpen(false)} />
+    </>
   );
 }

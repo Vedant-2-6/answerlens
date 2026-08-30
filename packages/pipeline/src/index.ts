@@ -5,7 +5,7 @@ export type PipelineEvent =
   | { type: "STAGE_PROGRESS"; stage: StageKind; completed: number }
   | { type: "STAGE_DONE"; stage: StageKind; durationMs: number }
   | { type: "STAGE_ERROR"; stage: StageKind; message: string; retryable: boolean }
-  | { type: "RESULTS"; questions: Question[]; visionPages: VisionPage[]; mappings: MappingResult[]; gradings: GradingResult[] };
+  | { type: "RESULTS"; questions: Question[]; visionPages: VisionPage[]; mappings: MappingResult[]; gradings: GradingResult[]; paperMaxMarks: number | null };
 
 export interface RasterizedPage {
   pageIndex: number;
@@ -115,20 +115,58 @@ export class PipelineOrchestrator {
       if (this.isCancelled) return;
 
       // ------------------------------------------------------------------
-      // Stage 3: Vision — analyse answer-sheet pages
-      //   POST /api/extract/answer-page  { page, imageBase64 }  → VisionPage
+      // Stage 3: Vision — analyse answer-sheet pages (Batched)
+      //   POST /api/extract/answer-chunk  { pages, imagesBase64 }  → VisionPage[]
       // ------------------------------------------------------------------
       this.activeStage = "vision";
       const t_vision = performance.now();
       this.onEvent({ type: "STAGE_START", stage: "vision", total: aOcr.length });
       const allVisionPages: VisionPage[] = [];
-      for (let i = 0; i < aOcr.length; i++) {
-        const item = aOcr[i]!;
-        const { ocrPage: page, base64 } = item;
-        const vp = await this.callApi("/api/extract/answer-page", { page, imageBase64: base64 });
-        allVisionPages.push(vp as VisionPage);
-        this.onEvent({ type: "STAGE_PROGRESS", stage: "vision", completed: i + 1 });
+      
+      const chunkSize = 3;
+      const chunks = [];
+      for (let i = 0; i < aOcr.length; i += chunkSize) {
+        chunks.push(aOcr.slice(i, i + chunkSize));
       }
+
+      let completedVisionPages = 0;
+      const processChunk = async (chunk: typeof aOcr) => {
+        const pages = chunk.map(c => c.ocrPage);
+        const imagesBase64 = chunk.map(c => c.base64);
+        const rawVps = await this.callApi("/api/extract/answer-chunk", { pages, imagesBase64 });
+        
+        const transformedVps: VisionPage[] = (rawVps as any[]).map(vp => {
+          const transcription = (vp.blocks || [])
+            .filter((b: any) => b.kind === 'answer' || b.kind === 'rough-work' || b.kind === 'label-only')
+            .map((b: any) => (b.label ? `[LABEL: ${b.label}]\n` : "") + b.text)
+            .join("\n\n");
+          
+          const approximate_regions = (vp.blocks || []).map((b: any) => ({
+            xMin: 0,
+            xMax: 1,
+            yMin: b.approxTopFraction || 0,
+            yMax: b.approxBottomFraction || 1
+          }));
+
+          return {
+            pageIndex: vp.pageIndex,
+            transcription,
+            approximate_regions
+          };
+        });
+
+        completedVisionPages += chunk.length;
+        this.onEvent({ type: "STAGE_PROGRESS", stage: "vision", completed: completedVisionPages });
+        return transformedVps;
+      };
+
+      const chunkResults = await this.asyncPool(2, chunks, processChunk); // Concurrency 2 means max 2 API calls at once, well within limits
+      for (const res of chunkResults) {
+        allVisionPages.push(...res);
+      }
+      // Sort by pageIndex to maintain order
+      allVisionPages.sort((a, b) => a.pageIndex - b.pageIndex);
+
       this.onEvent({ type: "STAGE_DONE", stage: "vision", durationMs: Math.round(performance.now() - t_vision) });
       if (this.isCancelled) return;
 
@@ -148,20 +186,23 @@ export class PipelineOrchestrator {
       if (this.isCancelled) return;
 
       // ------------------------------------------------------------------
-      // Stage 5: Grading — one call per mapping
-      //   POST /api/grade  { mapping, question, settings }  → GradingResult
+      // Stage 5: Grading — Batched
+      //   POST /api/grade-batch  { items, settings }  → GradingResult[]
       // ------------------------------------------------------------------
       this.activeStage = "grading";
       const t_grading = performance.now();
       this.onEvent({ type: "STAGE_START", stage: "grading", total: allMappings.length });
-      const allGradings: GradingResult[] = [];
-      for (let i = 0; i < allMappings.length; i++) {
-        const mapping = allMappings[i]!;
-        const question = allQuestions.find(q => q.id === mapping.questionId);
-        const gradeRes = await this.callApi("/api/grade", { mapping, question, settings });
-        allGradings.push(gradeRes as GradingResult);
-        this.onEvent({ type: "STAGE_PROGRESS", stage: "grading", completed: i + 1 });
+      
+      const gradeItems = allMappings.map(mapping => ({
+        mapping,
+        question: allQuestions.find(q => q.id === mapping.questionId)
+      })).filter(i => !!i.question);
+
+      let allGradings: GradingResult[] = [];
+      if (gradeItems.length > 0) {
+        allGradings = await this.callApi("/api/grade-batch", { items: gradeItems, settings });
       }
+      this.onEvent({ type: "STAGE_PROGRESS", stage: "grading", completed: allMappings.length });
       this.onEvent({ type: "STAGE_DONE", stage: "grading", durationMs: Math.round(performance.now() - t_grading) });
 
       // ------------------------------------------------------------------
@@ -173,6 +214,7 @@ export class PipelineOrchestrator {
         visionPages: allVisionPages,
         mappings: allMappings,
         gradings: allGradings,
+        paperMaxMarks: extractRes.paperMaxMarks ?? null,
       });
 
     } catch (e: any) {

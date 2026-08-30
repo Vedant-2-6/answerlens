@@ -12,7 +12,7 @@ export interface RasterizedPage {
   height: number;
 }
 
-const MAX_LONG_EDGE = 800;
+const MAX_LONG_EDGE = 2400;
 const QUALITY = 0.85;
 
 export async function rasterizeFile(file: File): Promise<RasterizedPage[]> {
@@ -82,11 +82,8 @@ async function rasterizePdf(file: File): Promise<RasterizedPage[]> {
     const page = await pdf.getPage(i);
     const viewport = page.getViewport({ scale: 1.0 });
     
-    let scale = 1.0;
     const longEdge = Math.max(viewport.width, viewport.height);
-    if (longEdge > MAX_LONG_EDGE) {
-      scale = MAX_LONG_EDGE / longEdge;
-    }
+    const scale = MAX_LONG_EDGE / longEdge;
     const scaledViewport = page.getViewport({ scale });
 
     const canvas = document.createElement("canvas");

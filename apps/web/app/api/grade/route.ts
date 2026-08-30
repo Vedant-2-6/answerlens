@@ -27,6 +27,7 @@ export async function POST(req: Request) {
     }
 
     if (!question || !mapping) {
+      console.log("Missing mapping or question!", { mapping: JSON.stringify(mapping), question: JSON.stringify(question) });
       return NextResponse.json({ error: "Missing mapping or question" }, { status: 400 });
     }
 
@@ -44,9 +45,9 @@ export async function POST(req: Request) {
       } as GradingResult);
     }
 
-    const baseUrl = process.env.OMNIROUTE_BASE_URL;
-    const apiKey = process.env.OMNIROUTE_API_KEY;
-    const model = process.env.OMNIROUTE_EXTRACTION_MODEL;
+    const baseUrl = process.env.AI_BASE_URL;
+    const apiKey = process.env.AI_API_KEY;
+    const model = process.env.AI_MODEL;
     
     if (!baseUrl || !apiKey || !model) {
       return NextResponse.json({ error: "Missing OmniRoute credentials" }, { status: 500 });

@@ -19,11 +19,7 @@ function computeProgress(stages: Record<StageKind, { kind: string }>): number {
 
 export function ProcessingScreen() {
   const router = useRouter();
-  const { 
-    stages, setStage, 
-    questionFile, answerFile,
-    setQuestions, setVisionPages, setMappings, setGradings, setOrphans, setMode 
-  } = useSessionStore();
+  const { questionFile, answerFile, setStage, stages, setQuestions, setVisionPages, setMappings, setGradings, setPaperMaxMarks, setMode } = useSessionStore();
   
   const pct = computeProgress(stages);
   const anyFailed = STAGE_ORDER.some((k) => stages[k].kind === "failed");
@@ -78,6 +74,7 @@ export function ProcessingScreen() {
           setVisionPages(event.visionPages);
           setMappings(event.mappings);
           setGradings(event.gradings);
+          setPaperMaxMarks(event.paperMaxMarks ?? null);
           setMode("quantitative");
           router.push("/results");
           break;

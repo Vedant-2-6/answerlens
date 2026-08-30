@@ -40,9 +40,9 @@ export async function POST(req: Request) {
 
     const { pages } = parsed.data;
     
-    const baseUrl = process.env.OMNIROUTE_BASE_URL;
-    const apiKey = process.env.OMNIROUTE_API_KEY;
-    const model = process.env.OMNIROUTE_EXTRACTION_MODEL;
+    const baseUrl = process.env.AI_BASE_URL;
+    const apiKey = process.env.AI_API_KEY;
+    const model = process.env.AI_MODEL;
     
     if (!baseUrl || !apiKey || !model) {
       return NextResponse.json({ error: "Server configuration error: Missing OmniRoute environment variables" }, { status: 500 });

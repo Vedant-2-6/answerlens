@@ -28,6 +28,7 @@ interface SessionState {
   mappings: MappingResult[];
   gradings: GradingResult[];
   orphans: OrphanRegion[];
+  paperMaxMarks: number | null;
   mode: GradingMode | null;
 
   // Stage tracking
@@ -47,6 +48,7 @@ interface SessionState {
   setMappings: (m: MappingResult[]) => void;
   addGrading: (g: GradingResult) => void;
   setGradings: (g: GradingResult[]) => void;
+  setPaperMaxMarks: (n: number | null) => void;
   setOrphans: (o: OrphanRegion[]) => void;
   setMode: (m: GradingMode) => void;
 
@@ -99,6 +101,7 @@ export const useSessionStore = create<SessionState>()(
       setMappings: (m) => set({ mappings: m }),
       addGrading: (g) => set((s) => { const next = s.gradings.slice(); next.push(g); return { gradings: next }; }),
       setGradings: (g) => set({ gradings: g }),
+      setPaperMaxMarks: (n) => set({ paperMaxMarks: n }),
       setOrphans: (o) => set({ orphans: o }),
       setMode: (m) => set({ mode: m }),
 
@@ -107,7 +110,7 @@ export const useSessionStore = create<SessionState>()(
           questionFile: null, answerFile: null,
           questionPages: [], answerPages: [],
           questions: [], visionPages: [], mappings: [],
-          gradings: [], orphans: [], mode: null,
+          gradings: [], orphans: [], paperMaxMarks: null, mode: null,
           stages: initialStages,
           selectedQuestionId: null,
           sidebarCollapsed: false,
