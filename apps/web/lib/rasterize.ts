@@ -48,7 +48,7 @@ async function rasterizeImage(file: File): Promise<RasterizedPage> {
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
 
-      const dataUrl = canvas.toDataURL("image/png");
+      const dataUrl = canvas.toDataURL("image/jpeg", QUALITY);
       
       // Explicit GC
       canvas.width = 0;
@@ -93,7 +93,7 @@ async function rasterizePdf(file: File): Promise<RasterizedPage[]> {
     
     await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
 
-    const dataUrl = canvas.toDataURL("image/png");
+    const dataUrl = canvas.toDataURL("image/jpeg", QUALITY);
     
     // Explicit GC
     page.cleanup();

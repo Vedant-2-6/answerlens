@@ -80,7 +80,7 @@ export class PipelineOrchestrator {
       const ocrPage = async (p: RasterizedPage) => {
         const res = await this.callApi("/api/ocr", {
           imageBase64: p.base64,
-          mimeType: "image/png",
+          mimeType: "image/jpeg",
           pageIndex: p.pageIndex,
           width: p.width,
           height: p.height,
