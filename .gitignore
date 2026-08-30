@@ -4,3 +4,5 @@ dist
 .turbo
 .env.local
 .env*.local
+.vercel
+.env*
