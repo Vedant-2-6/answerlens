@@ -30,11 +30,14 @@ async function getScheduler(): Promise<Scheduler> {
   return initPromise;
 }
 
-export async function ocrPage({ imageBase64, pageIndex, width, height }: OcrInput): Promise<OcrPage> {
-  const buffer = Buffer.from(imageBase64, "base64");
+export async function ocrPage({ imageBase64, mimeType, pageIndex, width, height }: OcrInput): Promise<OcrPage> {
+  const isBrowser = typeof globalThis !== "undefined" && "window" in globalThis;
+  const input = !isBrowser
+    ? Buffer.from(imageBase64, "base64")
+    : `data:${mimeType || "image/jpeg"};base64,${imageBase64}`;
 
   const scheduler = await getScheduler();
-  const { data } = await scheduler.addJob("recognize", buffer);
+  const { data } = await scheduler.addJob("recognize", input);
 
   const imageWidth  = width || 1000;
   const imageHeight = height || 1000;

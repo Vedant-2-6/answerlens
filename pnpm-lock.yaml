@@ -156,6 +156,9 @@ importers:
 
   packages/pipeline:
     dependencies:
+      '@answerlens/providers':
+        specifier: workspace:*
+        version: link:../providers
       '@answerlens/types':
         specifier: workspace:*
         version: link:../types

@@ -1,4 +1,5 @@
 import type { Question, VisionPage, MappingResult, GradingResult, StageKind, OcrPage } from "@answerlens/types";
+import { ocrPage as localOcrPage } from "@answerlens/providers";
 
 export type PipelineEvent = 
   | { type: "STAGE_START"; stage: StageKind; total?: number }
@@ -78,7 +79,7 @@ export class PipelineOrchestrator {
 
       let ocrDone = 0;
       const ocrPage = async (p: RasterizedPage) => {
-        const res = await this.callApi("/api/ocr", {
+        const res = await localOcrPage({
           imageBase64: p.base64,
           mimeType: "image/jpeg",
           pageIndex: p.pageIndex,
