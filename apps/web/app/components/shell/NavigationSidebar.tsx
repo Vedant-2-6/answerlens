@@ -10,10 +10,12 @@ import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { toast } from "sonner";
 
+import { useRouter } from "next/navigation";
+
 function cx(...args: any[]) { return twMerge(clsx(args)); }
 
 const navItems = [
-  { icon: LayoutGrid, label: "Home" },
+  { icon: LayoutGrid, label: "Home", isNav: true, href: "/" },
   { icon: Users, label: "My Classroom" },
   { icon: FileText, label: "Assignments" },
   { icon: Clipboard, label: "Exams", active: true },
@@ -21,13 +23,32 @@ const navItems = [
 ];
 
 export function NavigationSidebar() {
-  const { sidebarCollapsed, setSidebarCollapsed } = useSessionStore();
+  const router = useRouter();
+  const { sidebarCollapsed, setSidebarCollapsed, reset } = useSessionStore();
   const width = sidebarCollapsed ? 64 : 304;
 
   const handleDummyClick = (feature: string) => {
     toast.info(`${feature} is in development`, {
       description: "This is a premium feature scheduled for the next release.",
     });
+  };
+
+  const handleNavClick = (item: typeof navItems[0]) => {
+    if (item.isNav) {
+      if (item.label === "Home") {
+        reset();
+        router.push(item.href || "/");
+      }
+    } else if (!item.active) {
+      toast.info(`${item.label} is in development`, {
+        description: "This is a premium feature scheduled for the next release.",
+      });
+    }
+  };
+
+  const handleHomeLogo = () => {
+    reset();
+    router.push("/");
   };
 
   return (
@@ -41,7 +62,9 @@ export function NavigationSidebar() {
       {/* Header */}
       <div className={cx("flex items-center pt-4 pb-3", sidebarCollapsed ? "px-3 justify-center" : "px-4 justify-between")}>
         <button 
-          onClick={() => sidebarCollapsed && setSidebarCollapsed(false)}
+          onClick={() => {
+            sidebarCollapsed ? setSidebarCollapsed(false) : handleHomeLogo();
+          }}
           className={cx("flex items-center gap-2 overflow-hidden outline-none shrink-0", sidebarCollapsed && "hover:opacity-80 transition-opacity")}
           title={sidebarCollapsed ? "Expand Sidebar" : undefined}
         >
@@ -95,9 +118,7 @@ export function NavigationSidebar() {
         {navItems.map((item, i) => (
           <button
             key={item.label}
-            onClick={() => {
-              if (!item.active) handleDummyClick(item.label);
-            }}
+            onClick={() => handleNavClick(item)}
             className={cx(
               "flex items-center gap-3 rounded-[10px] transition-colors overflow-hidden",
               sidebarCollapsed ? "w-10 h-10 justify-center mx-auto" : "w-full px-3 py-2.5 text-sm font-semibold",
