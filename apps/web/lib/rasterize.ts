@@ -12,7 +12,7 @@ export interface RasterizedPage {
   height: number;
 }
 
-const MAX_LONG_EDGE = 1600;
+const MAX_LONG_EDGE = 1200;
 const QUALITY = 0.85;
 
 export async function rasterizeFile(file: File): Promise<RasterizedPage[]> {
