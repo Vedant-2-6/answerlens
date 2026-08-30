@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { computeCostMatrix, solveHungarian, smithWaterman, tokenize } from "@answerlens/mapping";
+import { mapAnswersLLM } from "@answerlens/mapping";
 import type { Question, VisionPage, MappingResult } from "@answerlens/types";
 
 export async function POST(req: Request) {
@@ -7,13 +7,15 @@ export async function POST(req: Request) {
     const { questions, visionPages } = await req.json() as { questions: Question[], visionPages: VisionPage[] };
 
     if (process.env.USE_STUBS === "true") {
+      // Simulate that the student only answered 1(a), 1(b), and 2(a)
+      const answeredQuestions = questions.slice(0, 3);
       return NextResponse.json({
-        mappings: questions.map((q, i) => ({
+        mappings: answeredQuestions.map((q, i) => ({
           questionId: q.id,
           regions: [],
           tier: "approximate",
           confidence: 0.99,
-          transcription: "Stub answer for " + q.id,
+          transcription: "Stub answer for " + q.id + "\n\nThis is a simulated student answer.",
           labelEvidence: 1,
           semanticEvidence: 1,
           orderEvidence: 1,
@@ -27,49 +29,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ mappings: [], orphans: [] });
     }
 
-    // 1. Compute scores between each question and each vision page transcription
-    const numQuestions = questions.length;
-    const numGroups = visionPages.length; // Simplified: each page is a "group"
-    const scores = Array(numQuestions).fill(0).map(() => Array(numGroups).fill(0));
+    const baseUrl = process.env.OMNIROUTE_BASE_URL;
+    const apiKey = process.env.OMNIROUTE_API_KEY;
+    const model = process.env.OMNIROUTE_MAPPING_MODEL || process.env.OMNIROUTE_EXTRACTION_MODEL;
 
-    for (let i = 0; i < numQuestions; i++) {
-      const qTokens = tokenize(questions[i]!.text);
-      for (let j = 0; j < numGroups; j++) {
-        const vpTokens = tokenize(visionPages[j]!.transcription);
-        const alignment = smithWaterman(qTokens, vpTokens);
-        // Normalize score between 0 and 1 roughly
-        scores[i]![j] = Math.min(alignment.score / (qTokens.length * 2 || 1), 1.0);
-      }
+    if (!baseUrl || !apiKey || !model) {
+      return NextResponse.json({ error: "Missing OmniRoute environment variables for Mapping" }, { status: 500 });
     }
 
-    // 2. Build cost matrix and solve Hungarian
-    const { matrix, size } = computeCostMatrix(numQuestions, numGroups, scores);
-    const assignment = solveHungarian(matrix);
+    const { mappings, orphans } = await mapAnswersLLM(questions, visionPages, baseUrl, apiKey, model);
 
-    // 3. Reconstruct mapping results
-    const mappings: MappingResult[] = [];
-    for (let i = 0; i < numQuestions; i++) {
-      const assignedJ = assignment[i]!;
-      if (assignedJ < numGroups) { // Valid assignment (not unassigned/orphan)
-        const vp = visionPages[assignedJ]!;
-        const conf = scores[i]![assignedJ]!;
-        mappings.push({
-          questionId: questions[i]!.id,
-          regions: vp.approximate_regions.map(r => ({ ...r, pageIndex: vp.pageIndex })),
-          tier: conf > 0.8 ? "exact" : "approximate",
-          confidence: conf,
-          transcription: vp.transcription,
-          labelEvidence: conf,
-          semanticEvidence: conf,
-          orderEvidence: 1.0, // simplified
-          suppressed: conf < 0.2 // Very low threshold for now
-        });
-      } else {
-        // Unanswered
-      }
-    }
-
-    return NextResponse.json({ mappings, orphans: [] });
+    return NextResponse.json({ mappings, orphans });
   } catch (error: any) {
     console.error("[POST /api/map] Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
