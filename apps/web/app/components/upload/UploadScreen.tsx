@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { useSessionStore } from "@/app/store/session";
+import { useSettingsStore } from "@/app/store/settings";
 import { AccentHeading } from "./AccentHeading";
 import { TeacherIllustration } from "./TeacherIllustration";
 import { DropZone } from "./DropZone";
@@ -16,6 +17,7 @@ export function UploadScreen() {
     setQuestionFile, setAnswerFile,
     setSidebarCollapsed,
   } = useSessionStore();
+  const { settings, updateSettings } = useSettingsStore();
 
   const [llmDegraded, setLlmDegraded] = useState(false);
 
@@ -77,6 +79,47 @@ export function UploadScreen() {
                 onRemove={() => setAnswerFile(null)}
               />
             </div>
+            
+            {bothReady && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="mt-6 pt-6 border-t border-black/5 flex flex-col gap-4 overflow-hidden"
+              >
+                <h3 className="text-sm font-semibold text-text-body">Grading Configuration</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-medium text-text-muted">Focus Evaluation On:</label>
+                    <div className="flex items-center gap-4 text-sm text-text-body bg-surface-app p-2 rounded border border-black/5">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="focus" checked={settings.focus === 'answer'} onChange={() => updateSettings({ focus: 'answer' })} className="accent-accent" />
+                        Final Answer
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="focus" checked={settings.focus === 'steps'} onChange={() => updateSettings({ focus: 'steps' })} className="accent-accent" />
+                        Steps / Method
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-medium text-text-muted">Partial Marking:</label>
+                    <label className="flex items-center gap-2 text-sm text-text-body cursor-pointer bg-surface-app p-2 rounded border border-black/5 h-[38px]">
+                      <input type="checkbox" checked={settings.allowPartial} onChange={(e) => updateSettings({ allowPartial: e.target.checked })} className="accent-accent w-4 h-4 rounded" />
+                      Award partial marks
+                    </label>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-medium text-text-muted">Unordered Sequence:</label>
+                    <label className="flex items-center gap-2 text-sm text-text-body cursor-pointer bg-surface-app p-2 rounded border border-black/5 h-[38px]">
+                      <input type="checkbox" checked={settings.allowUnordered} onChange={(e) => updateSettings({ allowUnordered: e.target.checked })} className="accent-accent w-4 h-4 rounded" />
+                      Allow out of order
+                    </label>
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </div>
 
           <PrimaryButton

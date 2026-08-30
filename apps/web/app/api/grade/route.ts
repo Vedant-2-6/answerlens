@@ -4,17 +4,23 @@ import type { Question, MappingResult, GradingResult } from "@answerlens/types";
 
 export async function POST(req: Request) {
   try {
-    const { mapping, question } = await req.json() as { mapping: MappingResult, question?: Question };
+    const { mapping, question, settings } = await req.json() as { mapping: MappingResult, question?: Question, settings?: any };
 
     if (process.env.USE_STUBS === "true") {
+      const max = question?.maxMarks ?? 5;
+      const awarded = Math.max(0, max - 1); // e.g. 7->6, 5->4, 3->2
+      
       return NextResponse.json({
         questionId: mapping.questionId,
-        marks: question?.maxMarks ?? 1,
-        maxMarks: question?.maxMarks ?? 1,
-        verdict: "full",
-        qualitative: "Correct",
-        feedback: "Stub feedback.",
-        rubricVerdicts: [],
+        marks: awarded,
+        maxMarks: max,
+        verdict: awarded === max ? "full" : "partial",
+        qualitative: awarded === max ? "Correct" : "Partial",
+        feedback: "Stub feedback showing a realistic deduction.",
+        rubricVerdicts: [
+          { verdict: "met", justification: "Good conceptual understanding." },
+          { verdict: "partial", justification: "Missed one edge case." }
+        ],
         suppressed: false,
         provisional: true
       } as GradingResult);
@@ -47,10 +53,10 @@ export async function POST(req: Request) {
     }
 
     // 1. Derive Rubric
-    const rubric = await deriveRubric(question, baseUrl, apiKey, model);
+    const rubric = await deriveRubric(question, baseUrl, apiKey, model, settings);
 
     // 2. Evaluate
-    const evaluation = await evaluateAnswer(question, rubric, mapping.transcription, baseUrl, apiKey, model);
+    const evaluation = await evaluateAnswer(question, rubric, mapping.transcription, baseUrl, apiKey, model, settings);
 
     // 3. Construct GradingResult
     const res: GradingResult = {

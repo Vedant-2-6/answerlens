@@ -147,3 +147,10 @@ export interface Session {
 export function assertNever(x: never): never {
   throw new Error(`Unhandled case: ${JSON.stringify(x)}`);
 }
+
+export interface GradingSettings {
+  focus: 'answer' | 'steps';
+  allowPartial: boolean;
+  allowUnordered: boolean;
+}
+

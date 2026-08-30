@@ -2,6 +2,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSessionStore } from "@/app/store/session";
+import { useSettingsStore } from "@/app/store/settings";
 import { SparkleCluster } from "./SparkleCluster";
 import { StageList } from "./StageList";
 import type { StageKind } from "@answerlens/types";
@@ -43,6 +44,8 @@ export function ProcessingScreen() {
     }[activeStage] || "Processing...";
   }
 
+  const { settings } = useSettingsStore();
+
   useEffect(() => {
     if (!questionFile || !answerFile) {
       router.replace("/");
@@ -81,12 +84,12 @@ export function ProcessingScreen() {
       }
     }, { rasterizeFile });
 
-    orchestrator.run(questionFile, answerFile);
+    orchestrator.run(questionFile, answerFile, settings);
 
     return () => {
       orchestrator.cancel();
     };
-  }, [questionFile, answerFile, router, setStage, setQuestions, setVisionPages, setMappings, setGradings, setMode]);
+  }, [questionFile, answerFile, router, setStage, setQuestions, setVisionPages, setMappings, setGradings, setMode, settings]);
 
   return (
     <div className="h-full bg-surface-card rounded-[--radius-pane] flex items-center justify-center">

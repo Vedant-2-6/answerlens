@@ -51,7 +51,7 @@ export class PipelineOrchestrator {
     return results;
   }
 
-  async run(questionFile: File, answerFile: File) {
+  async run(questionFile: File, answerFile: File, settings?: any) {
     try {
       if (this.isCancelled) return;
 
@@ -149,7 +149,7 @@ export class PipelineOrchestrator {
 
       // ------------------------------------------------------------------
       // Stage 5: Grading — one call per mapping
-      //   POST /api/grade  { mapping }  → GradingResult
+      //   POST /api/grade  { mapping, question, settings }  → GradingResult
       // ------------------------------------------------------------------
       this.activeStage = "grading";
       const t_grading = performance.now();
@@ -158,7 +158,7 @@ export class PipelineOrchestrator {
       for (let i = 0; i < allMappings.length; i++) {
         const mapping = allMappings[i]!;
         const question = allQuestions.find(q => q.id === mapping.questionId);
-        const gradeRes = await this.callApi("/api/grade", { mapping, question });
+        const gradeRes = await this.callApi("/api/grade", { mapping, question, settings });
         allGradings.push(gradeRes as GradingResult);
         this.onEvent({ type: "STAGE_PROGRESS", stage: "grading", completed: i + 1 });
       }

@@ -46,19 +46,30 @@ export async function deriveRubric(
   question: Question,
   baseUrl: string,
   apiKey: string,
-  model: string
+  model: string,
+  settings?: any
 ): Promise<RubricPoint[]> {
   if (!question.maxMarks) return [];
   const userPrompt = `Question: ${question.text}\nMax Marks: ${question.maxMarks}`;
+  
+  let sysPrompt = P04_SYSTEM_PROMPT;
+  if (settings) {
+    const mods = [];
+    if (settings.focus === "steps") mods.push("- Emphasize steps, workings, and methodology when breaking down marks.");
+    else if (settings.focus === "answer") mods.push("- Emphasize the correct final answer when breaking down marks.");
+    if (settings.allowPartial === false) mods.push("- Partial marks are strictly disabled. Make points atomic (no half-marks).");
+    sysPrompt += "\n\nTEACHER INSTRUCTIONS:\n" + mods.join("\n");
+  }
+
   let lastRaw = "";
   try {
-    const { parsed, raw } = await callOmniRouteJSON(baseUrl, apiKey, model, P04_SYSTEM_PROMPT, userPrompt);
+    const { parsed, raw } = await callOmniRouteJSON(baseUrl, apiKey, model, sysPrompt, userPrompt);
     lastRaw = raw;
     const arrayTarget = Array.isArray(parsed) ? parsed : (parsed.rubric || parsed.points || parsed.rubricPoints || Object.values(parsed)[0] || parsed);
     return RubricSchema.parse(arrayTarget);
   } catch (err: any) {
     const repair = `${userPrompt}\n\nYour previous response failed validation: ${err.message}.\nYou generated:\n${lastRaw}\n\nReturn ONLY a JSON array of rubric points summing to ${question.maxMarks}.`;
-    const { parsed } = await callOmniRouteJSON(baseUrl, apiKey, model, P04_SYSTEM_PROMPT, repair);
+    const { parsed } = await callOmniRouteJSON(baseUrl, apiKey, model, sysPrompt, repair);
     const arrayTarget = Array.isArray(parsed) ? parsed : (parsed.rubric || parsed.points || parsed.rubricPoints || Object.values(parsed)[0] || parsed);
     return RubricSchema.parse(arrayTarget);
   }
@@ -87,20 +98,30 @@ export async function evaluateAnswer(
   answerText: string,
   baseUrl: string,
   apiKey: string,
-  model: string
+  model: string,
+  settings?: any
 ): Promise<{ marks: number; verdict: Verdict; rubricVerdicts: RubricVerdict[] }> {
   if (rubric.length === 0) return { marks: 0, verdict: "zero", rubricVerdicts: [] };
 
   const userPrompt = `Question: ${question.text}\nRubric: ${JSON.stringify(rubric)}\nStudent Answer: ${answerText}`;
 
+  let sysPrompt = P05_SYSTEM_PROMPT;
+  if (settings) {
+    const mods = [];
+    if (settings.focus === "steps") mods.push("- Evaluate based on steps, workings, and methodology.");
+    else if (settings.focus === "answer") mods.push("- Evaluate strictly based on the final answer.");
+    if (settings.allowPartial === false) mods.push("- Partial marking is disabled. DO NOT return 'partial' as a verdict, only 'met' or 'unmet'.");
+    sysPrompt += "\n\nTEACHER INSTRUCTIONS:\n" + mods.join("\n");
+  }
+
   let raw, lastRaw = "";
   try {
-    const res = await callOmniRouteJSON(baseUrl, apiKey, model, P05_SYSTEM_PROMPT, userPrompt);
+    const res = await callOmniRouteJSON(baseUrl, apiKey, model, sysPrompt, userPrompt);
     lastRaw = res.raw;
     raw = EvaluationSchema.parse(res.parsed);
   } catch (err: any) {
     const repair = `${userPrompt}\n\nError: ${err.message}.\nYou generated:\n${lastRaw}\nReturn corrected JSON.`;
-    const res = await callOmniRouteJSON(baseUrl, apiKey, model, P05_SYSTEM_PROMPT, repair);
+    const res = await callOmniRouteJSON(baseUrl, apiKey, model, sysPrompt, repair);
     raw = EvaluationSchema.parse(res.parsed);
   }
 
@@ -112,7 +133,7 @@ export async function evaluateAnswer(
     const point = rubric.find(r => r.id === v.pointId);
     if (!point) continue;
     if (v.verdict === 'met') totalMarks += point.weight;
-    else if (v.verdict === 'partial') totalMarks += (point.weight * 0.5);
+    else if (v.verdict === 'partial') totalMarks += (settings?.allowPartial === false ? 0 : (point.weight * 0.5));
     
     if (point.required && v.verdict === 'unmet') {
       requiredFailed = true;
@@ -121,10 +142,9 @@ export async function evaluateAnswer(
 
   if (requiredFailed) totalMarks = 0;
   
-  // Fix floating point issues (e.g. 0.1 + 0.2 = 0.30000000000000004)
+  // Fix floating point issues
   totalMarks = Math.round(totalMarks * 100) / 100;
 
-  // Instead of silently truncating marks if LLM over-awarded, we bound it but the underlying logic remains fixed by using strict rubric point lookup
   if (question.maxMarks && totalMarks > question.maxMarks) {
     totalMarks = question.maxMarks;
   }
