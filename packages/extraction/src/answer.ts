@@ -76,9 +76,6 @@ export const P02ChunkOutputSchema = z.object({
 export type P02ChunkResult = z.infer<typeof P02ChunkOutputSchema>;
 
 async function callOmniRouteVisionJSON(
-  omnirouteBaseUrl: string,
-  omnirouteApiKey: string,
-  model: string,
   systemPrompt: string,
   userPromptText: string,
   imagesBase64: string[]
@@ -99,7 +96,7 @@ async function callOmniRouteVisionJSON(
     stream: false
   };
 
-  const credentials = getLLMCredentials(omnirouteApiKey, model, omnirouteBaseUrl);
+  const credentials = getLLMCredentials();
   const res = await callLLMJSON(payloadBase, credentials);
   return res.parsed;
 }
@@ -138,19 +135,16 @@ function applySemanticValidators(result: P02Result, ocrPage: OcrPage): P02Result
 
 export async function extractAnswerPage(
   ocrPage: OcrPage,
-  imageBase64: string,
-  omnirouteBaseUrl: string,
-  omnirouteApiKey: string,
-  model: string
+  imageBase64: string
 ): Promise<P02Result> {
   const userPrompt = `TASK CONTEXT\nPage Index: ${ocrPage.pageIndex}\nOCR Text Hints:\n<<<DOCUMENT>>>\n${ocrPage.rawText}\n<<<END DOCUMENT>>>\n\nAnalyze the provided image and extract all blocks.`;
   try {
-    const rawJson = await callOmniRouteVisionJSON(omnirouteBaseUrl, omnirouteApiKey, model, P02_SYSTEM_PROMPT, userPrompt, [imageBase64]);
+    const rawJson = await callOmniRouteVisionJSON(P02_SYSTEM_PROMPT, userPrompt, [imageBase64]);
     let parsed = P02OutputSchema.parse(rawJson);
     return applySemanticValidators(parsed, ocrPage);
   } catch (error: any) {
     const repairPrompt = `${userPrompt}\n\nYour previous response was rejected. Error: ${error.message}. Return only corrected JSON conforming to the schema.`;
-    const repairedJson = await callOmniRouteVisionJSON(omnirouteBaseUrl, omnirouteApiKey, model, P02_SYSTEM_PROMPT, repairPrompt, [imageBase64]);
+    const repairedJson = await callOmniRouteVisionJSON(P02_SYSTEM_PROMPT, repairPrompt, [imageBase64]);
     let parsed = P02OutputSchema.parse(repairedJson);
     return applySemanticValidators(parsed, ocrPage);
   }
@@ -158,10 +152,7 @@ export async function extractAnswerPage(
 
 export async function extractAnswerPagesChunk(
   ocrPages: OcrPage[],
-  imagesBase64: string[],
-  omnirouteBaseUrl: string,
-  omnirouteApiKey: string,
-  model: string
+  imagesBase64: string[]
 ): Promise<P02ChunkResult> {
   const userPrompt = `TASK CONTEXT\nYou are analyzing ${ocrPages.length} pages simultaneously.\n\n` + 
     ocrPages.map(p => `--- PAGE ${p.pageIndex} ---\nOCR Text Hints:\n<<<DOCUMENT>>>\n${p.rawText}\n<<<END DOCUMENT>>>\n`).join("\n") +
@@ -196,7 +187,7 @@ export async function extractAnswerPagesChunk(
   );
 
   try {
-    const rawJson = await callOmniRouteVisionJSON(omnirouteBaseUrl, omnirouteApiKey, model, chunkSystemPrompt, userPrompt, imagesBase64);
+    const rawJson = await callOmniRouteVisionJSON(chunkSystemPrompt, userPrompt, imagesBase64);
     let parsed = P02ChunkOutputSchema.parse(rawJson);
     parsed.pages = parsed.pages.map(p => {
       const originalOcr = ocrPages.find(op => op.pageIndex === p.pageIndex);
@@ -205,7 +196,7 @@ export async function extractAnswerPagesChunk(
     return parsed;
   } catch (error: any) {
     const repairPrompt = `${userPrompt}\n\nYour previous response was rejected. Error: ${error.message}. Return only corrected JSON conforming to the schema.`;
-    const repairedJson = await callOmniRouteVisionJSON(omnirouteBaseUrl, omnirouteApiKey, model, chunkSystemPrompt, repairPrompt, imagesBase64);
+    const repairedJson = await callOmniRouteVisionJSON(chunkSystemPrompt, repairPrompt, imagesBase64);
     let parsed = P02ChunkOutputSchema.parse(repairedJson);
     parsed.pages = parsed.pages.map(p => {
       const originalOcr = ocrPages.find(op => op.pageIndex === p.pageIndex);

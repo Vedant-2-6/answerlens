@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { getLLMCredentials } from "@answerlens/providers";
+
 /**
  * GET /api/health
  * Called by UploadScreen on mount to check provider availability.
@@ -8,21 +10,18 @@ import { NextResponse } from "next/server";
 export async function GET() {
   const useStubs = process.env.USE_STUBS === "true";
   const ocrProvider = process.env.OCR_PROVIDER ?? "tesseract";
-  const omniRouteUrl = process.env.AI_BASE_URL;
-  const omniRouteKey = process.env.AI_API_KEY;
 
   let ocrStatus: "ok" | "error" = "ok";
   let llmStatus: "ok" | "error" = "ok";
 
   if (!useStubs) {
-    // Check OCR — Tesseract.js runs locally, always available when the function is warm
-    // We do a lightweight check: just ensure the env is set correctly
     if (ocrProvider !== "tesseract") {
       ocrStatus = "error";
     }
 
-    // Check LLM — verify env variables are set
-    if (!omniRouteUrl || !omniRouteKey) {
+    try {
+      getLLMCredentials();
+    } catch (err) {
       llmStatus = "error";
     }
   }

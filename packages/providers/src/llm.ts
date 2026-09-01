@@ -67,13 +67,25 @@ export async function callLLMJSON(
   throw new Error("All credentials exhausted without success.");
 }
 
-export function getLLMCredentials(key: string, model: string, baseUrl: string) {
+export function sanitizeEnvValue(v: string | undefined): string | undefined {
+  if (v == null) return v;
+  return v.replace(/^\uFEFF/, "").trim();
+}
+
+export function getLLMCredentials() {
+  const baseUrl = sanitizeEnvValue(process.env.AI_BASE_URL);
+  const key = sanitizeEnvValue(process.env.AI_API_KEY);
+  const model = sanitizeEnvValue(process.env.AI_MODEL);
+
+  if (!baseUrl || !key || !model) {
+    throw new Error("Missing primary OmniRoute credentials (AI_BASE_URL, AI_API_KEY, AI_MODEL)");
+  }
+
+  const key2 = sanitizeEnvValue(process.env.AI_API_KEY_2) || key;
+  const model2 = sanitizeEnvValue(process.env.AI_MODEL_FALLBACK) || model;
+
   return [
     { key, model, baseUrl },
-    {
-      key: process.env.AI_API_KEY_2 || key,
-      model: process.env.AI_MODEL_FALLBACK || model,
-      baseUrl
-    }
+    { key: key2, model: model2, baseUrl }
   ];
 }

@@ -34,7 +34,7 @@ Return a JSON object matching exactly this structure:
   ]
 }`;
 
-async function callOmniRouteJSON(baseUrl: string, apiKey: string, model: string, systemPrompt: string, userPrompt: string): Promise<{ parsed: any, raw: string }> {
+async function callOmniRouteJSON(systemPrompt: string, userPrompt: string): Promise<{ parsed: any, raw: string }> {
   const payloadBase = {
     messages: [
       { role: "system", content: systemPrompt },
@@ -44,15 +44,12 @@ async function callOmniRouteJSON(baseUrl: string, apiKey: string, model: string,
     response_format: { type: "json_object" }
   };
 
-  const credentials = getLLMCredentials(apiKey, model, baseUrl);
+  const credentials = getLLMCredentials();
   return callLLMJSON(payloadBase, credentials);
 }
 
 export async function deriveRubric(
   question: Question,
-  baseUrl: string,
-  apiKey: string,
-  model: string,
   settings?: any
 ): Promise<RubricPoint[]> {
   if (!question.maxMarks) return [];
@@ -69,13 +66,13 @@ export async function deriveRubric(
 
   let lastRaw = "";
   try {
-    const { parsed, raw } = await callOmniRouteJSON(baseUrl, apiKey, model, sysPrompt, userPrompt);
+    const { parsed, raw } = await callOmniRouteJSON(sysPrompt, userPrompt);
     lastRaw = raw;
     const arrayTarget = Array.isArray(parsed) ? parsed : (parsed.rubric || parsed.points || parsed.rubricPoints || Object.values(parsed)[0] || parsed);
     return RubricSchema.parse(arrayTarget);
   } catch (err: any) {
     const repair = `${userPrompt}\n\nYour previous response failed validation: ${err.message}.\nYou generated:\n${lastRaw}\n\nReturn ONLY a JSON array of rubric points summing to ${question.maxMarks}.`;
-    const { parsed } = await callOmniRouteJSON(baseUrl, apiKey, model, sysPrompt, repair);
+    const { parsed } = await callOmniRouteJSON(sysPrompt, repair);
     const arrayTarget = Array.isArray(parsed) ? parsed : (parsed.rubric || parsed.points || parsed.rubricPoints || Object.values(parsed)[0] || parsed);
     return RubricSchema.parse(arrayTarget);
   }
@@ -126,9 +123,6 @@ export async function evaluateAnswer(
   question: Question,
   rubric: RubricPoint[],
   answerText: string,
-  baseUrl: string,
-  apiKey: string,
-  model: string,
   settings?: any,
   finalAnswerText?: string | null
 ): Promise<{ marks: number; verdict: Verdict; rubricVerdicts: RubricVerdict[] }> {
@@ -147,12 +141,12 @@ export async function evaluateAnswer(
 
   let raw, lastRaw = "";
   try {
-    const res = await callOmniRouteJSON(baseUrl, apiKey, model, sysPrompt, userPrompt);
+    const res = await callOmniRouteJSON(sysPrompt, userPrompt);
     lastRaw = res.raw;
     raw = EvaluationSchema.parse(res.parsed);
   } catch (err: any) {
     const repair = `${userPrompt}\n\nError: ${err.message}.\nYou generated:\n${lastRaw}\nReturn corrected JSON.`;
-    const res = await callOmniRouteJSON(baseUrl, apiKey, model, sysPrompt, repair);
+    const res = await callOmniRouteJSON(sysPrompt, repair);
     raw = EvaluationSchema.parse(res.parsed);
   }
 
@@ -208,9 +202,6 @@ export async function evaluateAnswer(
 
 export async function deriveRubricsBatch(
   questions: Question[],
-  baseUrl: string,
-  apiKey: string,
-  model: string,
   settings?: any
 ): Promise<Record<string, RubricPoint[]>> {
   const validQs = questions.filter(q => q.maxMarks && q.maxMarks > 0);
@@ -244,7 +235,7 @@ export async function deriveRubricsBatch(
     sysPrompt += "\n\nTEACHER INSTRUCTIONS:\n" + mods.join("\n");
   }
 
-  const { parsed } = await callOmniRouteJSON(baseUrl, apiKey, model, sysPrompt, userPrompt);
+  const { parsed } = await callOmniRouteJSON(sysPrompt, userPrompt);
   
   const result: Record<string, RubricPoint[]> = {};
   const rubricsObj = parsed.rubrics || parsed;
@@ -264,9 +255,6 @@ export async function deriveRubricsBatch(
 
 export async function evaluateAnswersBatch(
   items: { question: Question, rubric: RubricPoint[], answerText: string, finalAnswerText?: string | null }[],
-  baseUrl: string,
-  apiKey: string,
-  model: string,
   settings?: any
 ): Promise<Record<string, { marks: number; verdict: Verdict; rubricVerdicts: RubricVerdict[] }>> {
   if (items.length === 0) return {};
@@ -300,7 +288,7 @@ export async function evaluateAnswersBatch(
     sysPrompt += "\n\nTEACHER INSTRUCTIONS:\n" + mods.join("\n");
   }
 
-  const { parsed } = await callOmniRouteJSON(baseUrl, apiKey, model, sysPrompt, userPrompt);
+  const { parsed } = await callOmniRouteJSON(sysPrompt, userPrompt);
   
   const result: Record<string, { marks: number; verdict: Verdict; rubricVerdicts: RubricVerdict[] }> = {};
   const evalsObj = parsed.evaluations || parsed;
@@ -366,10 +354,7 @@ export async function evaluateAnswersBatch(
 export async function critiqueBorderlineAnswer(
   questionText: string,
   transcription: string,
-  metVerdicts: { pointId: string; text: string; justification: string }[],
-  baseUrl: string,
-  apiKey: string,
-  model: string
+  metVerdicts: { pointId: string; text: string; justification: string }[]
 ): Promise<{ pointId: string; grounded: boolean; critique: string }[]> {
   if (metVerdicts.length === 0) return [];
 
@@ -398,7 +383,7 @@ Grader Justification: ${v.justification}`).join("\n\n")}
 `;
 
   try {
-    const credentials = getLLMCredentials(apiKey, model, baseUrl);
+    const credentials = getLLMCredentials();
     const payloadBase = {
       messages: [
         { role: "system", content: sysPrompt },

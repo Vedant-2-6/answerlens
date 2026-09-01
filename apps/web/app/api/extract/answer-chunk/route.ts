@@ -35,15 +35,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const baseUrl = process.env.AI_BASE_URL;
-    const apiKey = process.env.AI_API_KEY;
-    const model = process.env.AI_MODEL;
-    
-    if (!baseUrl || !apiKey || !model) {
-      return NextResponse.json({ error: "Missing OmniRoute credentials" }, { status: 500 });
-    }
-
-    const result = await extractAnswerPagesChunk(pages, imagesBase64, baseUrl, apiKey, model);
+    const result = await extractAnswerPagesChunk(pages, imagesBase64);
     return NextResponse.json(result.pages);
   } catch (error: any) {
     console.error("[POST /api/extract/answer-chunk] Error:", error);

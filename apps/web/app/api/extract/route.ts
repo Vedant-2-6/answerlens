@@ -39,14 +39,6 @@ export async function POST(req: Request) {
     }
 
     const { pages } = parsed.data;
-    
-    const baseUrl = process.env.AI_BASE_URL;
-    const apiKey = process.env.AI_API_KEY;
-    const model = process.env.AI_MODEL;
-    
-    if (!baseUrl || !apiKey || !model) {
-      return NextResponse.json({ error: "Server configuration error: Missing OmniRoute environment variables" }, { status: 500 });
-    }
 
     let result: any;
     if (process.env.USE_STUBS === "true") {
@@ -60,7 +52,7 @@ export async function POST(req: Request) {
         suspicious: []
       };
     } else {
-      result = await extractQuestions(pages as OcrPage[], baseUrl, apiKey, model);
+      result = await extractQuestions(pages as OcrPage[]);
     }
 
     // Transform QuestionCandidate to Question

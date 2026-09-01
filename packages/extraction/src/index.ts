@@ -148,9 +148,6 @@ function sanitizeFences(text: string): string {
 }
 
 async function callOmniRouteJSON(
-  omnirouteBaseUrl: string,
-  omnirouteApiKey: string,
-  model: string,
   systemPrompt: string,
   userPrompt: string
 ): Promise<any> {
@@ -164,16 +161,13 @@ async function callOmniRouteJSON(
     stream: false
   };
 
-  const credentials = getLLMCredentials(omnirouteApiKey, model, omnirouteBaseUrl);
+  const credentials = getLLMCredentials();
   const res = await callLLMJSON(payloadBase, credentials);
   return res.parsed;
 }
 
 export async function extractQuestions(
-  pages: OcrPage[],
-  omnirouteBaseUrl: string,
-  omnirouteApiKey: string,
-  model: string
+  pages: OcrPage[]
 ): Promise<P01Result> {
   
   const docText = sanitizeFences(assembleDocumentText(pages));
@@ -213,12 +207,12 @@ Extract all questions, sections, and choice groups, and return them as structure
 
   // Try 1
   try {
-    const rawJson = await callOmniRouteJSON(omnirouteBaseUrl, omnirouteApiKey, model, P01_SYSTEM_PROMPT, userPromptBase);
+    const rawJson = await callOmniRouteJSON(P01_SYSTEM_PROMPT, userPromptBase);
     return P01OutputSchema.parse(rawJson);
   } catch (error: any) {
     // 1-retry repair loop
     const repairPrompt = `${userPromptBase}\n\nYour previous response was rejected. Error: ${error.message}. Return only corrected JSON conforming to the schema. Do not explain.`;
-    const repairedJson = await callOmniRouteJSON(omnirouteBaseUrl, omnirouteApiKey, model, P01_SYSTEM_PROMPT, repairPrompt);
+    const repairedJson = await callOmniRouteJSON(P01_SYSTEM_PROMPT, repairPrompt);
     return P01OutputSchema.parse(repairedJson);
   }
 }export * from "./answer";

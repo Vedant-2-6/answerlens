@@ -45,19 +45,11 @@ export async function POST(req: Request) {
       } as GradingResult);
     }
 
-    const baseUrl = process.env.AI_BASE_URL;
-    const apiKey = process.env.AI_API_KEY;
-    const model = process.env.AI_MODEL;
-    
-    if (!baseUrl || !apiKey || !model) {
-      return NextResponse.json({ error: "Missing OmniRoute credentials" }, { status: 500 });
-    }
-
     // 1. Derive Rubric
-    const rubric = await deriveRubric(question, baseUrl, apiKey, model, settings);
+    const rubric = await deriveRubric(question, settings);
 
     // 2. Evaluate
-    const evaluation = await evaluateAnswer(question, rubric, mapping.transcription, baseUrl, apiKey, model, settings);
+    const evaluation = await evaluateAnswer(question, rubric, mapping.transcription, settings);
 
     // 3. Construct GradingResult
     const res: GradingResult = {

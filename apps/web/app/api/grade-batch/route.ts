@@ -33,21 +33,13 @@ export async function POST(req: Request) {
       return NextResponse.json([]);
     }
 
-    const baseUrl = process.env.AI_BASE_URL;
-    const apiKey = process.env.AI_API_KEY;
-    const model = process.env.AI_MODEL;
-    
-    if (!baseUrl || !apiKey || !model) {
-      return NextResponse.json({ error: "Missing OmniRoute credentials" }, { status: 500 });
-    }
-
     // Filter out suppressed mappings
     const validItems = items.filter(i => !i.mapping.suppressed);
     const suppressedItems = items.filter(i => i.mapping.suppressed);
 
     // 1. Derive Rubrics
     const questionsToGrade = validItems.map(i => i.question);
-    const rubrics = await deriveRubricsBatch(questionsToGrade, baseUrl, apiKey, model, settings);
+    const rubrics = await deriveRubricsBatch(questionsToGrade, settings);
 
     // 2. Evaluate
     const evalItems = validItems.map(i => ({
@@ -56,7 +48,7 @@ export async function POST(req: Request) {
       answerText: i.mapping.transcription,
       finalAnswerText: i.mapping.finalAnswerText
     }));
-    const evaluations = await evaluateAnswersBatch(evalItems, baseUrl, apiKey, model, settings);
+    const evaluations = await evaluateAnswersBatch(evalItems, settings);
 
     // 3. Construct GradingResults
     const results: GradingResult[] = [];
@@ -85,10 +77,7 @@ export async function POST(req: Request) {
             const verifications = await critiqueBorderlineAnswer(
               item.question.text,
               item.mapping.transcription,
-              metVerdicts,
-              baseUrl,
-              apiKey,
-              model
+              metVerdicts
             );
             const ungrounded = verifications.filter(v => !v.grounded);
             if (ungrounded.length > 0) {

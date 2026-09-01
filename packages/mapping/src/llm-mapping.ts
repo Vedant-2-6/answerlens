@@ -14,10 +14,7 @@ function buildRegionFromBlock(b: { approxTopFraction: number; approxBottomFracti
 
 export async function mapAnswersLLM(
   questions: Question[],
-  visionPages: VisionPage[],
-  omnirouteBaseUrl: string,
-  omnirouteApiKey: string,
-  model: string
+  visionPages: VisionPage[]
 ): Promise<{ mappings: MappingResult[], orphans: any[] }> {
   const prompt = `You are an expert examiner mapping a student's answer sheet to the original question paper.
   
@@ -84,7 +81,7 @@ RETURN JSON FORMAT:
     response_format: { type: "json_object" }
   };
 
-  const credentials = getLLMCredentials(omnirouteApiKey, model, omnirouteBaseUrl);
+  const credentials = getLLMCredentials();
   const { parsed } = await callLLMJSON(payloadBase, credentials);
 
   // Compute print order rank for each question ID

@@ -29,15 +29,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ mappings: [], orphans: [] });
     }
 
-    const baseUrl = process.env.AI_BASE_URL;
-    const apiKey = process.env.AI_API_KEY;
-    const model = process.env.AI_MODEL;
-
-    if (!baseUrl || !apiKey || !model) {
-      return NextResponse.json({ error: "Missing OmniRoute environment variables for Mapping" }, { status: 500 });
-    }
-
-    const { mappings, orphans } = await mapAnswersLLM(questions, visionPages, baseUrl, apiKey, model);
+    const { mappings, orphans } = await mapAnswersLLM(questions, visionPages);
 
     return NextResponse.json({ mappings, orphans });
   } catch (error: any) {

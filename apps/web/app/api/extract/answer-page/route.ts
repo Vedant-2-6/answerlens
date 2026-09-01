@@ -41,15 +41,6 @@ export async function POST(req: Request) {
 
     const { page, imageBase64 } = parsed.data;
     
-    const baseUrl = process.env.AI_BASE_URL;
-    const apiKey = process.env.AI_API_KEY;
-    const model = process.env.AI_MODEL;
-    
-    console.log(" ENV CHECK: ", { baseUrl, apiKey: !!apiKey, model });
-    if (!baseUrl || !apiKey || !model) {
-      return NextResponse.json({ error: "Missing OmniRoute environment variables" }, { status: 500 });
-    }
-
     let result: any;
     if (process.env.USE_STUBS === "true") {
       result = {
@@ -59,7 +50,7 @@ export async function POST(req: Request) {
         blocks: [{ text: "Stub answer text", approxTopFraction: 0, approxBottomFraction: 1, kind: "answer" }]
       };
     } else {
-      result = await extractAnswerPage(page as OcrPage, imageBase64, baseUrl, apiKey, model);
+      result = await extractAnswerPage(page as OcrPage, imageBase64);
     }
 
     const transcription = (result.blocks || [])
