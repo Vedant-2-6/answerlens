@@ -10,10 +10,12 @@
   },
   "dependencies": {
     "@answerlens/types": "workspace:*",
+    "@answerlens/providers": "workspace:*",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "typescript": "*",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "@types/node": "*"
   }
 }

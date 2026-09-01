@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { OcrPage, NormRect } from "@answerlens/types";
+import { callLLMJSON, getLLMCredentials } from "@answerlens/providers";
 
 // 1. Schemas (P-02)
 export const AnswerBlockCandidateSchema = z.object({
@@ -13,6 +14,7 @@ export const AnswerBlockCandidateSchema = z.object({
   approxBottomFraction: z.number().min(0).max(1),
   continuedFromPrevious: z.boolean(),
   continuesToNextPage: z.boolean(),
+  finalAnswerText: z.string().max(500).nullable().optional(),
 });
 
 export const P02OutputSchema = z.object({
@@ -44,6 +46,7 @@ RULES:
 10. If the block has a written label (e.g. "Ans 1", "b)"), put it in 'label'.
 11. Provide approxTopFraction (0.0 to 1.0) and approxBottomFraction (0.0 to 1.0) indicating vertical position.
 12. Set continuedFromPrevious/continuesToNextPage if the text flows across page boundaries.
+13. If the block contains a final numeric or symbolic answer (e.g. "x = 5", "3/4", "y = x^2 + 2x + 1"), extract just that final answer/conclusion and put it in 'finalAnswerText'. If there is no single final answer, set it to null.
 
 EXPECTED JSON FORMAT:
 {
@@ -61,7 +64,8 @@ EXPECTED JSON FORMAT:
       "approxBottomFraction": 0.4,
       "illegibleSpans": 0,
       "continuedFromPrevious": false,
-      "continuesToNextPage": false
+      "continuesToNextPage": false,
+      "finalAnswerText": "5"
     }
   ]
 }`;
@@ -79,8 +83,7 @@ async function callOmniRouteVisionJSON(
   userPromptText: string,
   imagesBase64: string[]
 ): Promise<any> {
-  const payload = {
-    model,
+  const payloadBase = {
     messages: [
       { role: "system", content: systemPrompt },
       { 
@@ -96,65 +99,9 @@ async function callOmniRouteVisionJSON(
     stream: false
   };
 
-  let attempt = 0;
-  let lastError: Error | null = null;
-  while (attempt < 15) {
-    try {
-      const response = await fetch(`${omnirouteBaseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${omnirouteApiKey}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        const err = new Error(`OmniRoute error ${response.status}: ${errText}`);
-        if (response.status >= 500 || response.status === 429) {
-          throw err;
-        }
-        throw err;
-      }
-
-      const responseText = await response.text();
-      let content = "";
-      try {
-        const json = JSON.parse(responseText);
-        content = json.choices[0].message.content;
-      } catch (e) {
-        const lines = responseText.split("\n");
-        for (const line of lines) {
-          if (line.startsWith("data: ") && line !== "data: [DONE]") {
-            try {
-              const chunk = JSON.parse(line.slice(6));
-              if (chunk.choices?.[0]?.delta?.content) content += chunk.choices[0].delta.content;
-            } catch (err) {}
-          }
-        }
-      }
-      
-      content = content.replace(/^```(?:json)?\n?/i, "").replace(/```$/i, "").trim();
-      return JSON.parse(content);
-    } catch (err: any) {
-      lastError = err;
-      if (err.message.includes("OmniRoute error") && !err.message.includes("5") && !err.message.includes("429")) {
-        throw err;
-      }
-      attempt++;
-      if (attempt < 15) {
-        let waitTimeMs = Math.min(attempt * 10000, 60000);
-        const match = err.message.match(/retry in ([\d\.]+)s/i);
-        if (match && match[1]) {
-          waitTimeMs = (parseFloat(match[1]) * 1000) + 2000;
-        }
-        console.log(`[Rate Limit Vision] Waiting ${Math.round(waitTimeMs/1000)}s before attempt ${attempt + 1}...`);
-        await new Promise(r => setTimeout(r, waitTimeMs));
-      }
-    }
-  }
-  throw lastError;
+  const credentials = getLLMCredentials(omnirouteApiKey, model, omnirouteBaseUrl);
+  const res = await callLLMJSON(payloadBase, credentials);
+  return res.parsed;
 }
 
 function applySemanticValidators(result: P02Result, ocrPage: OcrPage): P02Result {

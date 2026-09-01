@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { Question, RubricPoint, RubricVerdict, Verdict } from "@answerlens/types";
+import { mathEquivalenceCheck, extractExpectedAnswer } from "./math-verify";
+import { callLLMJSON, getLLMCredentials } from "@answerlens/providers";
 
 // ----------------------------------------------------------------------------
 // P-04 Rubric Derivation
@@ -33,8 +35,7 @@ Return a JSON object matching exactly this structure:
 }`;
 
 async function callOmniRouteJSON(baseUrl: string, apiKey: string, model: string, systemPrompt: string, userPrompt: string): Promise<{ parsed: any, raw: string }> {
-  const payload = {
-    model,
+  const payloadBase = {
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt }
@@ -42,40 +43,9 @@ async function callOmniRouteJSON(baseUrl: string, apiKey: string, model: string,
     temperature: 0,
     response_format: { type: "json_object" }
   };
-  
-  let attempt = 0;
-  let response;
-  while (attempt < 15) {
-    response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify(payload)
-    });
-    
-    if (response.ok) {
-      break;
-    }
-    if (response.status === 429) {
-      attempt++;
-      if (attempt < 15) {
-        let waitTimeMs = Math.min(attempt * 10000, 60000);
-        const errText = await response.clone().text().catch(() => "");
-        const match = errText.match(/retry in ([\d\.]+)s/i);
-        if (match && match[1]) {
-          waitTimeMs = (parseFloat(match[1]) * 1000) + 2000;
-        }
-        console.log(`[Rate Limit Grading] Waiting ${Math.round(waitTimeMs/1000)}s before attempt ${attempt + 1}...`);
-        await new Promise(r => setTimeout(r, waitTimeMs));
-        continue;
-      }
-    }
-    throw new Error(`OmniRoute error: ${await response.text()}`);
-  }
-  
-  let content = (await response!.json()).choices[0].message.content;
-  content = content.replace(/^```(?:json)?\n?/i, "").replace(/```$/i, "").trim();
-  const parsed = JSON.parse(content);
-  return { parsed, raw: content };
+
+  const credentials = getLLMCredentials(apiKey, model, baseUrl);
+  return callLLMJSON(payloadBase, credentials);
 }
 
 export async function deriveRubric(
@@ -127,7 +97,19 @@ const P05_SYSTEM_PROMPT = `You are an expert grader. Evaluate the student's answ
 For each point, return a verdict (met, partial, or unmet) and a short 1-sentence justification.
 Do not invent marks. Do not grade grammar unless specified in the rubric.
 For mathematical solutions, evaluate the steps logic carefully even if the final answer is wrong.
-For bad or cluttered handwriting, infer the student's intent generously where the technical terms or formulas are identifiable.
+Base every verdict only on what is actually legible in the transcription. If handwriting is
+unclear, say so explicitly in the justification rather than guessing what the student probably
+meant — an illegible answer is not evidence of understanding, even if a technical term or formula
+is partially recognizable. When genuinely uncertain, use 'partial' or 'unmet' rather than 'met',
+and say why in the justification.
+When comparing a student's answer to what is expected, judge correctness by mathematical or
+factual equivalence, not exact notation or phrasing. Accept equivalent numeric forms (fractions,
+decimals, percentages), equivalent algebraic forms (expanded vs. factored), and different valid
+methods that reach the same correct result. Do not deduct marks for notation style or handwriting
+formatting alone.
+If the answer demonstrates a complete, internally consistent, correct method that isn't listed in
+the rubric, still award full credit for the equivalent rubric points it satisfies, and note in
+the justification that an alternate valid method was used.
 
 Return JSON matching exactly this structure:
 {
@@ -147,7 +129,8 @@ export async function evaluateAnswer(
   baseUrl: string,
   apiKey: string,
   model: string,
-  settings?: any
+  settings?: any,
+  finalAnswerText?: string | null
 ): Promise<{ marks: number; verdict: Verdict; rubricVerdicts: RubricVerdict[] }> {
   if (rubric.length === 0) return { marks: 0, verdict: "zero", rubricVerdicts: [] };
 
@@ -180,6 +163,21 @@ export async function evaluateAnswer(
   for (const v of verdicts) {
     const point = rubric.find(r => r.id === v.pointId);
     if (!point) continue;
+
+    if (finalAnswerText && /final answer|final result|correct value|numeric value|symbolic value|correct answer|verdict|conclusion/i.test(point.text)) {
+      const expectedMath = extractExpectedAnswer(point.text);
+      if (expectedMath) {
+        const mathRes = mathEquivalenceCheck(expectedMath, finalAnswerText);
+        if (mathRes === true) {
+          v.verdict = "met";
+          v.justification = `[Math Verified] Student's final answer (${finalAnswerText}) is mathematically equivalent to the expected answer (${expectedMath}).`;
+        } else if (mathRes === false) {
+          v.verdict = "unmet";
+          v.justification = `[Math Verified] Student's final answer (${finalAnswerText}) is NOT mathematically equivalent to the expected answer (${expectedMath}).`;
+        }
+      }
+    }
+
     if (v.verdict === 'met') totalMarks += point.weight;
     else if (v.verdict === 'partial') totalMarks += (settings?.allowPartial === false ? 0 : (point.weight * 0.5));
     
@@ -265,7 +263,7 @@ export async function deriveRubricsBatch(
 }
 
 export async function evaluateAnswersBatch(
-  items: { question: Question, rubric: RubricPoint[], answerText: string }[],
+  items: { question: Question, rubric: RubricPoint[], answerText: string, finalAnswerText?: string | null }[],
   baseUrl: string,
   apiKey: string,
   model: string,
@@ -329,6 +327,21 @@ export async function evaluateAnswersBatch(
     for (const v of verdicts) {
       const point = item.rubric.find(r => r.id === v.pointId);
       if (!point) continue;
+
+      if (item.finalAnswerText && /final answer|final result|correct value|numeric value|symbolic value|correct answer|verdict|conclusion/i.test(point.text)) {
+        const expectedMath = extractExpectedAnswer(point.text);
+        if (expectedMath) {
+          const mathRes = mathEquivalenceCheck(expectedMath, item.finalAnswerText);
+          if (mathRes === true) {
+            v.verdict = "met";
+            v.justification = `[Math Verified] Student's final answer (${item.finalAnswerText}) is mathematically equivalent to the expected answer (${expectedMath}).`;
+          } else if (mathRes === false) {
+            v.verdict = "unmet";
+            v.justification = `[Math Verified] Student's final answer (${item.finalAnswerText}) is NOT mathematically equivalent to the expected answer (${expectedMath}).`;
+          }
+        }
+      }
+
       if (v.verdict === 'met') totalMarks += point.weight;
       else if (v.verdict === 'partial') totalMarks += (settings?.allowPartial === false ? 0 : (point.weight * 0.5));
       if (point.required && v.verdict === 'unmet') requiredFailed = true;
@@ -348,4 +361,56 @@ export async function evaluateAnswersBatch(
   }
 
   return result;
+}
+
+export async function critiqueBorderlineAnswer(
+  questionText: string,
+  transcription: string,
+  metVerdicts: { pointId: string; text: string; justification: string }[],
+  baseUrl: string,
+  apiKey: string,
+  model: string
+): Promise<{ pointId: string; grounded: boolean; critique: string }[]> {
+  if (metVerdicts.length === 0) return [];
+
+  const sysPrompt = `You are a strict grading auditor.
+Verify if the claims made in the grading justifications are actually, literally supported by the student's handwritten transcription.
+Do not assume or infer. If the justification claims the student showed a formula or reached a value, but that formula/value is not clearly legible in the transcription, mark it as NOT grounded.
+
+Expected JSON output format:
+{
+  "verifications": [
+    {
+      "pointId": "1",
+      "grounded": false,
+      "critique": "The justification claims the student solved x = 5, but the transcription has no mention of x or 5."
+    }
+  ]
+}`;
+
+  const userPrompt = `Question: ${questionText}
+Student Transcription: ${transcription}
+
+Rubric Points Claimed as Met:
+${metVerdicts.map(v => `Point ID: ${v.pointId}
+Rubric Description: ${v.text}
+Grader Justification: ${v.justification}`).join("\n\n")}
+`;
+
+  try {
+    const credentials = getLLMCredentials(apiKey, model, baseUrl);
+    const payloadBase = {
+      messages: [
+        { role: "system", content: sysPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0,
+      response_format: { type: "json_object" }
+    };
+    const { parsed } = await callLLMJSON(payloadBase, credentials);
+    return parsed.verifications || [];
+  } catch (e) {
+    console.error("[Self Critique Error]", e);
+    return metVerdicts.map(v => ({ pointId: v.pointId, grounded: true, critique: "" }));
+  }
 }

@@ -12,6 +12,7 @@
     "@answerlens/providers": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "*"
+    "typescript": "*",
+    "@types/node": "*"
   }
 }

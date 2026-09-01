@@ -10,7 +10,7 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      settings: { focus: "steps", allowPartial: true, allowUnordered: true },
+      settings: { focus: "steps", allowPartial: true },
       updateSettings: (s) => set((state) => ({ settings: { ...state.settings, ...s } }))
     }),
     { name: "answerlens-settings", storage: createJSONStorage(() => localStorage) }

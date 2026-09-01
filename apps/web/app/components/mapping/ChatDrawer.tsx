@@ -30,7 +30,13 @@ export function ChatDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =
     setIsLoading(true);
 
     // Prepare context
-    const ocrContext = visionPages.map(p => `--- PAGE ${p.pageIndex} ---\n${p.transcription}`).join("\n\n");
+    const ocrContext = visionPages.map(p => {
+      const pageText = (p.blocks || [])
+        .filter(b => b.kind === "answer" || b.kind === "rough-work" || b.kind === "label-only")
+        .map(b => (b.label ? `[LABEL: ${b.label}]\n` : "") + b.text)
+        .join("\n\n");
+      return `--- PAGE ${p.pageIndex} ---\n${pageText}`;
+    }).join("\n\n");
     const gradingContext = JSON.stringify({ questions, gradings }, null, 2);
 
     try {

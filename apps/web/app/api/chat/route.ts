@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { callLLMJSON, getLLMCredentials } from "@answerlens/providers";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,29 +25,18 @@ ${ocrContext}
 ${gradingContext}
 `;
 
-    const response = await fetch(`${omnirouteBaseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${omnirouteApiKey}`
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: query }
-        ],
-        temperature: 0.2
-      })
-    });
+    const payloadBase = {
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: query }
+      ],
+      temperature: 0.2
+    };
 
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`AI Error: ${err}`);
-    }
+    const credentials = getLLMCredentials(omnirouteApiKey, model, omnirouteBaseUrl);
+    const { raw } = await callLLMJSON(payloadBase, credentials);
 
-    const json = await response.json();
-    return NextResponse.json({ answer: json.choices[0].message.content });
+    return NextResponse.json({ answer: raw });
   } catch (error: any) {
     console.error("[Chat API]", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

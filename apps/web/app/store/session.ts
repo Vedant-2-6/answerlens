@@ -30,6 +30,8 @@ interface SessionState {
   orphans: OrphanRegion[];
   paperMaxMarks: number | null;
   mode: GradingMode | null;
+  corrections: Record<string, { type: 'mapping' | 'grading'; notes: string }>;
+  setCorrection: (qid: string, correction: { type: 'mapping' | 'grading'; notes: string } | null) => void;
 
   // Stage tracking
   stages: Record<StageKind, StageStatus>;
@@ -51,6 +53,10 @@ interface SessionState {
   setPaperMaxMarks: (n: number | null) => void;
   setOrphans: (o: OrphanRegion[]) => void;
   setMode: (m: GradingMode) => void;
+  estimatedGradeLevel: string | null;
+  subjectArea: string | null;
+  setEstimatedGradeLevel: (g: string | null) => void;
+  setSubjectArea: (s: string | null) => void;
 
   // Reset
   reset: () => void;
@@ -85,6 +91,20 @@ export const useSessionStore = create<SessionState>()(
       gradings: [],
       orphans: [],
       mode: null,
+      corrections: {},
+      setCorrection: (qid, correction) => set((s) => {
+        const next = { ...s.corrections };
+        if (correction) {
+          next[qid] = correction;
+        } else {
+          delete next[qid];
+        }
+        return { corrections: next };
+      }),
+      estimatedGradeLevel: null,
+      subjectArea: null,
+      setEstimatedGradeLevel: (g) => set({ estimatedGradeLevel: g }),
+      setSubjectArea: (s) => set({ subjectArea: s }),
 
       stages: initialStages,
       setStage: (stage, status) =>
@@ -112,6 +132,9 @@ export const useSessionStore = create<SessionState>()(
           questionPages: [], answerPages: [],
           questions: [], visionPages: [], mappings: [],
           gradings: [], orphans: [], paperMaxMarks: null, mode: null,
+          corrections: {},
+          estimatedGradeLevel: null,
+          subjectArea: null,
           stages: initialStages,
           selectedQuestionId: null,
           sidebarCollapsed: false,

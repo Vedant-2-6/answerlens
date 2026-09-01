@@ -6,7 +6,7 @@ export type PipelineEvent =
   | { type: "STAGE_PROGRESS"; stage: StageKind; completed: number }
   | { type: "STAGE_DONE"; stage: StageKind; durationMs: number }
   | { type: "STAGE_ERROR"; stage: StageKind; message: string; retryable: boolean }
-  | { type: "RESULTS"; questions: Question[]; visionPages: VisionPage[]; mappings: MappingResult[]; gradings: GradingResult[]; paperMaxMarks: number | null };
+  | { type: "RESULTS"; questions: Question[]; visionPages: VisionPage[]; mappings: MappingResult[]; gradings: GradingResult[]; paperMaxMarks: number | null; optionGroups?: any[]; estimatedGradeLevel?: string | null; subjectArea?: string | null };
 
 export interface RasterizedPage {
   pageIndex: number;
@@ -112,6 +112,31 @@ export class PipelineOrchestrator {
         pages: qOcr.map(q => q.ocrPage),
       });
       const allQuestions: Question[] = extractRes.questions ?? [];
+      const choiceGroups = extractRes.choiceGroups || [];
+      const optionGroups: any[] = [];
+
+      choiceGroups.forEach((cg: any, idx: number) => {
+        const ogId = `og-${idx}`;
+        const memberQuestionIds: string[] = [];
+
+        cg.memberLabels.forEach((label: string) => {
+          const matchedQ = allQuestions.find(q => q.labelRaw.trim() === label.trim());
+          if (matchedQ) {
+            matchedQ.optionGroupId = ogId;
+            memberQuestionIds.push(matchedQ.id);
+          }
+        });
+
+        if (memberQuestionIds.length > 0) {
+          optionGroups.push({
+            id: ogId,
+            memberQuestionIds,
+            requiredCount: cg.requiredCount,
+            instructionRaw: cg.sourceText || ""
+          });
+        }
+      });
+
       this.onEvent({ type: "STAGE_DONE", stage: "extraction", durationMs: Math.round(performance.now() - t_extraction) });
       if (this.isCancelled) return;
 
@@ -137,22 +162,18 @@ export class PipelineOrchestrator {
         const rawVps = await this.callApi("/api/extract/answer-chunk", { pages, imagesBase64 });
         
         const transformedVps: VisionPage[] = (rawVps as any[]).map(vp => {
-          const transcription = (vp.blocks || [])
-            .filter((b: any) => b.kind === 'answer' || b.kind === 'rough-work' || b.kind === 'label-only')
-            .map((b: any) => (b.label ? `[LABEL: ${b.label}]\n` : "") + b.text)
-            .join("\n\n");
-          
-          const approximate_regions = (vp.blocks || []).map((b: any) => ({
-            xMin: 0,
-            xMax: 1,
-            yMin: b.approxTopFraction || 0,
-            yMax: b.approxBottomFraction || 1
-          }));
-
           return {
             pageIndex: vp.pageIndex,
-            transcription,
-            approximate_regions
+            blocks: (vp.blocks || []).map((b: any) => ({
+              index: b.index ?? 0,
+              kind: b.kind || "answer",
+              label: b.label || null,
+              approxTopFraction: b.approxTopFraction ?? 0,
+              approxBottomFraction: b.approxBottomFraction ?? 1,
+              text: b.text || "",
+              continuedFromPrevious: b.continuedFromPrevious || false,
+              continuesToNextPage: b.continuesToNextPage || false,
+            })),
           };
         });
 
@@ -201,9 +222,25 @@ export class PipelineOrchestrator {
 
       let allGradings: GradingResult[] = [];
       if (gradeItems.length > 0) {
-        allGradings = await this.callApi("/api/grade-batch", { items: gradeItems, settings });
+        const gradeChunkSize = 4;
+        const gradeChunks = [];
+        for (let i = 0; i < gradeItems.length; i += gradeChunkSize) {
+          gradeChunks.push(gradeItems.slice(i, i + gradeChunkSize));
+        }
+
+        let completedGradings = 0;
+        const processGradeChunk = async (chunk: typeof gradeItems) => {
+          const res = await this.callApi("/api/grade-batch", { items: chunk, settings, optionGroups });
+          completedGradings += chunk.length;
+          this.onEvent({ type: "STAGE_PROGRESS", stage: "grading", completed: completedGradings });
+          return res as GradingResult[];
+        };
+
+        const chunkResults = await this.asyncPool(2, gradeChunks, processGradeChunk);
+        for (const res of chunkResults) {
+          allGradings.push(...res);
+        }
       }
-      this.onEvent({ type: "STAGE_PROGRESS", stage: "grading", completed: allMappings.length });
       this.onEvent({ type: "STAGE_DONE", stage: "grading", durationMs: Math.round(performance.now() - t_grading) });
 
       // ------------------------------------------------------------------
@@ -216,6 +253,9 @@ export class PipelineOrchestrator {
         mappings: allMappings,
         gradings: allGradings,
         paperMaxMarks: extractRes.paperMaxMarks ?? null,
+        optionGroups,
+        estimatedGradeLevel: extractRes.estimatedGradeLevel ?? null,
+        subjectArea: extractRes.subjectArea ?? null,
       });
 
     } catch (e: any) {

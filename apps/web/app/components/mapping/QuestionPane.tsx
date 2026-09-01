@@ -46,7 +46,7 @@ function FeedbackPanel({ verdicts }: { verdicts: RubricVerdict[] }) {
 }
 
 export function QuestionPane() {
-  const { questions, gradings, orphans, selectedQuestionId, selectQuestion } = useSessionStore();
+  const { questions, gradings, orphans, selectedQuestionId, selectQuestion, corrections, setCorrection } = useSessionStore();
 
   return (
     <div className="flex flex-col h-full bg-surface-card">
@@ -85,6 +85,74 @@ export function QuestionPane() {
               </div>
               <p className={`text-sm leading-snug ${textClass}`}>{q.text}</p>
               
+              {isSelected && (
+                <div className="mt-3 pt-3 border-t border-border-default/45">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-text-meta">Flag Correction</span>
+                    {corrections[q.id] && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCorrection(q.id, null);
+                        }}
+                        className="text-[10px] text-red-500 hover:underline"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCorrection(q.id, { 
+                          type: 'mapping', 
+                          notes: corrections[q.id]?.notes || 'Mapping incorrect' 
+                        });
+                      }}
+                      className={`px-2 py-1 text-xs border rounded-md font-medium transition-colors ${
+                        corrections[q.id]?.type === 'mapping'
+                          ? 'bg-accent/10 border-accent text-accent'
+                          : 'bg-white border-border-default text-text-meta hover:border-accent/40'
+                      }`}
+                    >
+                      Wrong Mapping
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCorrection(q.id, { 
+                          type: 'grading', 
+                          notes: corrections[q.id]?.notes || 'Grading incorrect' 
+                        });
+                      }}
+                      className={`px-2 py-1 text-xs border rounded-md font-medium transition-colors ${
+                        corrections[q.id]?.type === 'grading'
+                          ? 'bg-accent/10 border-accent text-accent'
+                          : 'bg-white border-border-default text-text-meta hover:border-accent/40'
+                      }`}
+                    >
+                      Wrong Grade
+                    </button>
+                  </div>
+                  {corrections[q.id] && (
+                    <input
+                      type="text"
+                      placeholder="Add details/notes..."
+                      value={corrections[q.id]?.notes || ''}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        const existing = corrections[q.id];
+                        if (existing) {
+                          setCorrection(q.id, { ...existing, notes: e.target.value });
+                        }
+                      }}
+                      className="w-full text-xs bg-white text-text-body px-2 py-1 rounded border border-border-default outline-none hover:border-accent/40 focus:border-accent"
+                    />
+                  )}
+                </div>
+              )}
+
               <AnimatePresence>
                 {isSelected && grade && !needsReview && (
                   <FeedbackPanel verdicts={grade.rubricVerdicts} />

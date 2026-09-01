@@ -45,10 +45,11 @@ export function solveHungarian(costMatrix: number[][]): number[] {
       
       for (let j = 0; j <= n; j++) {
         if (used[j]) {
-          u[p[j]!] += delta;
-          v[j] -= delta;
+          const idx = p[j]!;
+          u[idx] = (u[idx] ?? 0) + delta;
+          v[j] = (v[j] ?? 0) - delta;
         } else {
-          minv[j] -= delta;
+          minv[j] = (minv[j] ?? 0) - delta;
         }
       }
       j0 = j1;

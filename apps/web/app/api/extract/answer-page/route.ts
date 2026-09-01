@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     
     const baseUrl = process.env.AI_BASE_URL;
     const apiKey = process.env.AI_API_KEY;
-    const model = process.env.AI_MODEL || process.env.AI_MODEL;
+    const model = process.env.AI_MODEL;
     
     console.log(" ENV CHECK: ", { baseUrl, apiKey: !!apiKey, model });
     if (!baseUrl || !apiKey || !model) {

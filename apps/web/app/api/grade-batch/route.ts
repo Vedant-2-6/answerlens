@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { deriveRubricsBatch, evaluateAnswersBatch } from "@answerlens/grading";
-import type { Question, MappingResult, GradingResult } from "@answerlens/types";
+import { deriveRubricsBatch, evaluateAnswersBatch, critiqueBorderlineAnswer } from "@answerlens/grading";
+import type { Question, MappingResult, GradingResult, OptionGroup } from "@answerlens/types";
 
 export async function POST(req: Request) {
   try {
-    const { items, settings } = await req.json() as { items: { mapping: MappingResult, question: Question }[], settings?: any };
+    const { items, settings, optionGroups } = await req.json() as { items: { mapping: MappingResult, question: Question }[], settings?: any, optionGroups?: OptionGroup[] };
 
     if (process.env.USE_STUBS === "true") {
       return NextResponse.json(
@@ -53,7 +53,8 @@ export async function POST(req: Request) {
     const evalItems = validItems.map(i => ({
       question: i.question,
       rubric: rubrics[i.question.id] || [],
-      answerText: i.mapping.transcription
+      answerText: i.mapping.transcription,
+      finalAnswerText: i.mapping.finalAnswerText
     }));
     const evaluations = await evaluateAnswersBatch(evalItems, baseUrl, apiKey, model, settings);
 
@@ -64,15 +65,49 @@ export async function POST(req: Request) {
       const qid = item.question.id;
       const evaluation = evaluations[qid];
       if (evaluation) {
+        let suppressed = false;
+        let feedback = evaluation.rubricVerdicts.map((v: any) => v.justification).join(" ").slice(0, 200);
+        let qualitative = evaluation.verdict === "full" ? "Correct" : evaluation.verdict === "partial" ? "Partial" : "Incorrect";
+
+        if (item.mapping.confidence >= 0.50 && item.mapping.confidence < 0.75) {
+          const metVerdicts = evaluation.rubricVerdicts
+            .filter((v: any) => v.verdict === "met" || v.verdict === "partial")
+            .map((v: any) => {
+              const point = (rubrics[qid] || []).find(r => r.id === v.pointId);
+              return {
+                pointId: v.pointId,
+                text: point ? point.text : "",
+                justification: v.justification
+              };
+            });
+
+          if (metVerdicts.length > 0) {
+            const verifications = await critiqueBorderlineAnswer(
+              item.question.text,
+              item.mapping.transcription,
+              metVerdicts,
+              baseUrl,
+              apiKey,
+              model
+            );
+            const ungrounded = verifications.filter(v => !v.grounded);
+            if (ungrounded.length > 0) {
+              suppressed = true;
+              qualitative = "Needs review";
+              feedback = `[Audit] Needs review: ${ungrounded.map(u => u.critique).join(" ")}`.slice(0, 200);
+            }
+          }
+        }
+
         results.push({
           questionId: qid,
-          marks: evaluation.marks,
+          marks: suppressed ? null : evaluation.marks,
           maxMarks: item.question.maxMarks,
           verdict: evaluation.verdict,
-          qualitative: evaluation.verdict === "full" ? "Correct" : evaluation.verdict === "partial" ? "Partial" : "Incorrect",
-          feedback: evaluation.rubricVerdicts.map((v: any) => v.justification).join(" ").slice(0, 200),
+          qualitative: qualitative as any,
+          feedback,
           rubricVerdicts: evaluation.rubricVerdicts,
-          suppressed: false,
+          suppressed,
           provisional: true
         });
       }
@@ -81,15 +116,42 @@ export async function POST(req: Request) {
     for (const item of suppressedItems) {
       results.push({
         questionId: item.mapping.questionId,
-        marks: 0,
+        marks: null,
         maxMarks: item.question.maxMarks,
         verdict: "zero",
-        qualitative: "Incorrect",
-        feedback: "Grading suppressed due to low mapping confidence.",
+        qualitative: "Needs review",
+        feedback: "Grading was suppressed because the answer sheet block could not be confidently mapped to this question.",
         rubricVerdicts: [],
         suppressed: true,
         provisional: true
       });
+    }
+
+    // Default all results to countedTowardTotal = true
+    for (const r of results) {
+      r.countedTowardTotal = true;
+    }
+
+    if (optionGroups && optionGroups.length > 0) {
+      for (const og of optionGroups) {
+        const groupResults = results.filter(r => og.memberQuestionIds.includes(r.questionId));
+        
+        // Sort by marks/maxMarks ratio descending
+        groupResults.sort((a, b) => {
+          const ratioA = a.maxMarks ? (a.marks || 0) / a.maxMarks : 0;
+          const ratioB = b.maxMarks ? (b.marks || 0) / b.maxMarks : 0;
+          return ratioB - ratioA;
+        });
+
+        // The top requiredCount are counted toward total, the rest are not
+        groupResults.forEach((r, idx) => {
+          if (idx < og.requiredCount) {
+            r.countedTowardTotal = true;
+          } else {
+            r.countedTowardTotal = false;
+          }
+        });
+      }
     }
 
     return NextResponse.json(results);

@@ -38,10 +38,21 @@ export interface OcrPage {
 
 // ─── Vision Output ───────────────────────────────────────────────────────────
 
+export interface VisionBlock {
+  index: number;
+  kind: "answer" | "rough-work" | "label-only" | "diagram" | "page-meta" | "strike-through" | string;
+  label: string | null;
+  approxTopFraction: number;
+  approxBottomFraction: number;
+  text: string;
+  finalAnswerText?: string | null;
+  continuedFromPrevious?: boolean;
+  continuesToNextPage?: boolean;
+}
+
 export interface VisionPage {
   pageIndex: number;
-  transcription: string;
-  approximate_regions: NormRect[]; // soft hints ONLY — never used as final coords
+  blocks: VisionBlock[];
 }
 
 // ─── Questions ───────────────────────────────────────────────────────────────
@@ -54,6 +65,7 @@ export interface Question {
   pageIndex: number;    // page where the question header appears
   isSubPart: boolean;
   parentId: string | null; // "Q11" for sub-parts, null for top-level
+  optionGroupId?: string | null;
 }
 
 // ─── Pipeline Stage Status ───────────────────────────────────────────────────
@@ -78,6 +90,7 @@ export interface MappingResult {
   semanticEvidence: number;    // 0–1 sub-score
   orderEvidence: number;       // 0–1 sub-score
   suppressed: boolean;         // true when confidence < REVIEW_THRESHOLD (0.50)
+  finalAnswerText?: string | null;
 }
 
 export interface OrphanRegion {
@@ -89,7 +102,7 @@ export interface OrphanRegion {
 // ─── Grading ─────────────────────────────────────────────────────────────────
 
 export type Verdict = "full" | "partial" | "zero";
-export type QualitativeLabel = "Correct" | "Partial" | "Incorrect";
+export type QualitativeLabel = "Correct" | "Partial" | "Incorrect" | "Needs review";
 
 export interface RubricPoint {
   id: string;
@@ -114,11 +127,21 @@ export interface GradingResult {
   rubricVerdicts: RubricVerdict[];
   suppressed: boolean;        // true when mapping.confidence < 0.50 (grading skipped)
   provisional: boolean;       // always true in raw results, toggled later in UI
+  countedTowardTotal?: boolean;
 }
 
 export interface PaperSummary {
   themes: string[];   // 2–3 recurring missed themes
   summary: string;    // 3-sentence paragraph
+}
+
+// ─── Option Groups ───────────────────────────────────────────────────────────
+
+export interface OptionGroup {
+  id: string;
+  memberQuestionIds: string[];
+  requiredCount: number;
+  instructionRaw: string;
 }
 
 // ─── Session ─────────────────────────────────────────────────────────────────
@@ -140,6 +163,10 @@ export interface Session {
   stages: Record<StageKind, StageStatus>;
   mode: GradingMode; // derived once extraction completes
   createdAt: number; // Date.now()
+  optionGroups?: OptionGroup[];
+  corrections?: Record<string, { type: 'mapping' | 'grading'; notes: string }>;
+  estimatedGradeLevel?: string | null;
+  subjectArea?: string | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -152,6 +179,5 @@ export function assertNever(x: never): never {
 export interface GradingSettings {
   focus: 'answer' | 'steps';
   allowPartial: boolean;
-  allowUnordered: boolean;
 }
 

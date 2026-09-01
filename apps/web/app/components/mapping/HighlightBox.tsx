@@ -12,6 +12,10 @@ interface HighlightBoxProps {
 export function HighlightBox({ region, label, active, lowConfidence, onClick }: HighlightBoxProps) {
   const { y, x, w, h } = region;
   
+  if (!Number.isFinite(y) || !Number.isFinite(x) || !Number.isFinite(w) || !Number.isFinite(h)) {
+    return null;
+  }
+  
   return (
     <div
       onClick={(e) => { e.stopPropagation(); onClick(); }}

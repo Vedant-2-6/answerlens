@@ -110,13 +110,7 @@ export function UploadScreen() {
                     </label>
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs font-medium text-text-muted">Unordered Sequence:</label>
-                    <label className="flex items-center gap-2 text-sm text-text-body cursor-pointer bg-surface-app p-2 rounded border border-black/5 h-[38px]">
-                      <input type="checkbox" checked={settings.allowUnordered} onChange={(e) => updateSettings({ allowUnordered: e.target.checked })} className="accent-accent w-4 h-4 rounded" />
-                      Allow out of order
-                    </label>
-                  </div>
+
                 </div>
               </motion.div>
             )}

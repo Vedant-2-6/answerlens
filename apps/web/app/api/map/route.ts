@@ -31,7 +31,7 @@ export async function POST(req: Request) {
 
     const baseUrl = process.env.AI_BASE_URL;
     const apiKey = process.env.AI_API_KEY;
-    const model = process.env.AI_MODEL || process.env.AI_MODEL;
+    const model = process.env.AI_MODEL;
 
     if (!baseUrl || !apiKey || !model) {
       return NextResponse.json({ error: "Missing OmniRoute environment variables for Mapping" }, { status: 500 });
