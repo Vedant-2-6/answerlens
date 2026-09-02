@@ -24,13 +24,22 @@ export function UploadScreen() {
   const { settings, updateSettings } = useSettingsStore();
 
   const [llmDegraded, setLlmDegraded] = useState(false);
+  const [llmErrorMsg, setLlmErrorMsg] = useState("");
   const answerInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch("/api/health")
       .then((r) => r.json())
-      .then((d: { llm: string }) => { if (d.llm !== "ok") setLlmDegraded(true); })
-      .catch(() => setLlmDegraded(true));
+      .then((d: { llm: string, llmError?: string }) => { 
+        if (d.llm !== "ok") {
+          setLlmDegraded(true);
+          setLlmErrorMsg(d.llmError || "AI service is temporarily unavailable.");
+        } 
+      })
+      .catch(() => {
+        setLlmDegraded(true);
+        setLlmErrorMsg("Failed to reach health endpoint.");
+      });
   }, []);
 
   const bothReady = questionFile !== null && students.length > 0;
@@ -73,7 +82,7 @@ export function UploadScreen() {
             role="alert"
             className="mb-8 px-4 py-3 rounded-xl bg-[#fff5e6] text-[#e3600f] text-sm font-medium border border-[#e3600f]/20 max-w-lg w-full text-center"
           >
-            AI service is temporarily unavailable. You can still upload files.
+            {llmErrorMsg} You can still upload files but processing will fail.
           </motion.div>
         )}
 

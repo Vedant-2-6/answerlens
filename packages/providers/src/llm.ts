@@ -81,6 +81,12 @@ export function getLLMCredentials() {
     throw new Error("Missing primary OmniRoute credentials (AI_BASE_URL, AI_API_KEY, AI_MODEL)");
   }
 
+  try {
+    new URL(baseUrl);
+  } catch (err) {
+    throw new Error(`AI_BASE_URL is not a valid URL: ${baseUrl}`);
+  }
+
   const key2 = sanitizeEnvValue(process.env.AI_API_KEY_2) || key;
   const model2 = sanitizeEnvValue(process.env.AI_MODEL_FALLBACK) || model;
 

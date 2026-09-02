@@ -93,7 +93,50 @@ export function SummaryBar() {
     }
   };
 
-  return (
+    const handlePrintReport = () => {
+      if (!student) return;
+      const htmlContent = `
+        <html>
+          <head>
+            <title>${student.filename} - Grading Report</title>
+            <style>
+              body { font-family: sans-serif; padding: 40px; color: #333; }
+              h1 { border-bottom: 2px solid #ccc; padding-bottom: 10px; }
+              .summary { font-size: 1.2em; margin-bottom: 30px; font-weight: bold; }
+              .question { border-bottom: 1px solid #eee; padding: 15px 0; }
+              .question-title { font-weight: bold; margin-bottom: 5px; }
+              .marks { color: #555; }
+              .feedback { margin-top: 10px; font-style: italic; color: #666; }
+            </style>
+          </head>
+          <body>
+            <h1>Grading Report: ${student.filename}</h1>
+            <div class="summary">Total Score: ${totalScore} / ${totalMax}</div>
+            ${questions.map(q => {
+              const grade = student.gradings?.find(g => g.questionId === q.id);
+              const marks = grade && grade.countedTowardTotal !== false ? grade.marks : 0;
+              const feedback = grade ? grade.feedback : "Not answered";
+              return `
+                <div class="question">
+                  <div class="question-title">${q.labelRaw} - ${q.text}</div>
+                  <div class="marks">Marks: ${marks} / ${q.maxMarks}</div>
+                  <div class="feedback">Feedback: ${feedback}</div>
+                </div>
+              `;
+            }).join("")}
+          </body>
+        </html>
+      `;
+      const printWin = window.open('', '_blank');
+      if (printWin) {
+        printWin.document.write(htmlContent);
+        printWin.document.close();
+        printWin.focus();
+        setTimeout(() => printWin.print(), 250);
+      }
+    };
+
+    return (
     <>
     <div className="h-16 px-6 bg-surface-card border-b border-border-default flex items-center justify-between">
       <div className="flex items-center gap-4">
@@ -118,8 +161,13 @@ export function SummaryBar() {
           &larr; Back to Class
         </button>
         <button 
+          onClick={handlePrintReport}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded bg-white text-text-body border border-border-default shadow-sm hover:bg-surface transition-colors"
+        >
+          Print Report
+        </button>
+        <button 
           onClick={handleExport}
-
           className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded bg-white text-text-body border border-border-default shadow-sm hover:bg-surface transition-colors"
         >
           <Download size={16} />

@@ -14,6 +14,8 @@ export async function GET() {
   let ocrStatus: "ok" | "error" = "ok";
   let llmStatus: "ok" | "error" = "ok";
 
+  let llmError: string | null = null;
+
   if (!useStubs) {
     if (ocrProvider !== "tesseract") {
       ocrStatus = "error";
@@ -21,13 +23,14 @@ export async function GET() {
 
     try {
       getLLMCredentials();
-    } catch (err) {
+    } catch (err: any) {
       llmStatus = "error";
+      llmError = err.message || "Unknown LLM credential error";
     }
   }
 
   return NextResponse.json(
-    { ocr: ocrStatus, llm: llmStatus, stub: useStubs },
+    { ocr: ocrStatus, llm: llmStatus, llmError, stub: useStubs },
     {
       headers: {
         "Cache-Control": "no-cache, no-store",

@@ -1,6 +1,7 @@
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
+import { get, set, del } from "idb-keyval";
 import type {
   OcrPage,
   Question,
@@ -67,6 +68,18 @@ const initialStages: Record<StageKind, StageStatus> = {
   vision:     { kind: "idle" },
   mapping:    { kind: "idle" },
   grading:    { kind: "idle" },
+};
+
+const idbStorage: StateStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    return (await get(name)) || null;
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    await set(name, value);
+  },
+  removeItem: async (name: string): Promise<void> => {
+    await del(name);
+  },
 };
 
 export const useSessionStore = create<SessionState>()(
@@ -142,7 +155,7 @@ export const useSessionStore = create<SessionState>()(
     }),
     {
       name: "answerlens-class-session",
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => idbStorage),
       partialize: (state) => Object.fromEntries(
         Object.entries(state).filter(([key]) => !["questionFile"].includes(key))
       ) as any,
