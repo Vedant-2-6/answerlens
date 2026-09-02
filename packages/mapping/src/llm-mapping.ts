@@ -181,13 +181,17 @@ RETURN JSON FORMAT:
     });
 
     // Filter by kind
-    const filteredBlocks = targetBlocks.filter(b => b.kind === "answer" || b.kind === "rough-work" || b.kind === "label-only");
+    const filteredBlocks = targetBlocks.filter(b => b.kind === "answer" || b.kind === "rough-work" || b.kind === "label-only" || b.kind === "mcq");
 
     // Build transcription
     const transcription = filteredBlocks.map(b => (b.label ? `[LABEL: ${b.label}]\n` : "") + b.text).join("\n\n");
 
     // Build regions
     const regions = filteredBlocks.map(b => buildRegionFromBlock(b, b.pageIndex));
+
+    // Determine the dominant kind for this mapping (e.g. if it has an mcq block)
+    const hasMcq = filteredBlocks.some(b => b.kind === "mcq");
+    const mappingKind = hasMcq ? "mcq" : "prose";
 
     // Calculate labelEvidence
     const questionObj = questions.find(q => q.id === m.questionId);
@@ -228,6 +232,7 @@ RETURN JSON FORMAT:
 
     mappings.push({
       questionId: m.questionId,
+      kind: mappingKind,
       regions,
       tier: confidence > 0.8 ? "exact" : "approximate",
       confidence,

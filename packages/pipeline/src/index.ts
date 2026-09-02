@@ -1,6 +1,6 @@
 
 import type { Question, VisionPage, MappingResult, GradingResult, StageKind, OcrPage } from "@answerlens/types";
-import { ocrPage as localOcrPage } from "@answerlens/providers";
+import { ocrPage as localOcrPage, configureOcrLanguages, detectSecondaryLanguage } from "@answerlens/providers";
 
 export type PipelineEvent = 
   | { type: "STAGE_START"; stage: StageKind; total?: number; studentId?: string }
@@ -100,6 +100,16 @@ export class PipelineOrchestrator {
       });
       this.onEvent({ type: "STAGE_DONE", stage: "ocr", durationMs: Math.round(performance.now() - t_ocr) });
       if (this.isCancelled) return null;
+      
+      // Auto-detect secondary language (e.g., Hindi, Gujarati)
+      const combinedText = qOcr.map(q => q.ocrPage.rawText).join(" ");
+      const secLang = detectSecondaryLanguage(combinedText);
+      if (secLang) {
+        console.log(`[Pipeline] Detected secondary language: ${secLang}. Pre-warming workers...`);
+        // We do not wait for this to finish to avoid blocking extraction!
+        // It will run in the background and swap the workers before student OCR.
+        configureOcrLanguages(`eng+${secLang}`).catch(console.error);
+      }
 
       // Stage 2: Extraction
       this.activeStage = "extraction";
@@ -239,6 +249,7 @@ export class PipelineOrchestrator {
         const rawVps = await this.callApi("/api/extract/answer-chunk", { pages, imagesBase64 });
         const transformedVps: VisionPage[] = (rawVps as any[]).map(vp => ({
           pageIndex: vp.pageIndex,
+          imageQuality: vp.imageQuality || "good",
           blocks: (vp.blocks || []).map((b: any) => ({
             index: b.index ?? 0,
             kind: b.kind || "answer",
@@ -256,6 +267,12 @@ export class PipelineOrchestrator {
       });
       for (const res of chunkResults) allVisionPages.push(...res);
       allVisionPages.sort((a, b) => a.pageIndex - b.pageIndex);
+      
+      const unusablePage = allVisionPages.find(p => p.imageQuality === "unusable");
+      if (unusablePage) {
+        throw new Error(`Page ${unusablePage.pageIndex + 1} is unusable (blurry/dark/cropped). Please re-scan this page.`);
+      }
+      
       this.onEvent({ type: "STAGE_DONE", stage: "vision", durationMs: Math.round(performance.now() - t_vision), studentId });
       if (this.isCancelled) return null;
 

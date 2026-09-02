@@ -46,7 +46,8 @@ export async function POST(req: Request) {
       question: i.question,
       rubric: rubrics[i.question.id] || [],
       answerText: i.mapping.transcription,
-      finalAnswerText: i.mapping.finalAnswerText
+      finalAnswerText: i.mapping.finalAnswerText,
+      mappingKind: i.mapping.kind
     }));
     const evaluations = await evaluateAnswersBatch(evalItems, settings);
 

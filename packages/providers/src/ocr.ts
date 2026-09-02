@@ -11,6 +11,30 @@ export interface OcrInput {
 
 let sharedScheduler: Scheduler | null = null;
 let initPromise: Promise<Scheduler> | null = null;
+let currentLangs = "eng";
+
+export async function configureOcrLanguages(langs: string) {
+  if (currentLangs === langs && sharedScheduler) return;
+  currentLangs = langs;
+  
+  if (sharedScheduler) {
+    await sharedScheduler.terminate();
+  }
+  
+  sharedScheduler = null;
+  initPromise = null;
+  await getScheduler(); // Pre-warm
+}
+
+export function detectSecondaryLanguage(text: string): string | null {
+  const devanagariCount = (text.match(/[\u0900-\u097F]/g) || []).length;
+  if (devanagariCount > 20) return "hin";
+  
+  const gujaratiCount = (text.match(/[\u0A80-\u0AFF]/g) || []).length;
+  if (gujaratiCount > 20) return "guj";
+
+  return null;
+}
 
 async function getScheduler(): Promise<Scheduler> {
   if (sharedScheduler) return sharedScheduler;
@@ -20,7 +44,7 @@ async function getScheduler(): Promise<Scheduler> {
     const sched = createScheduler();
     // 3 concurrent workers to match pipeline concurrency
     for (let i = 0; i < 3; i++) {
-      const worker = await createWorker("eng");
+      const worker = await createWorker(currentLangs);
       sched.addWorker(worker);
     }
     sharedScheduler = sched;

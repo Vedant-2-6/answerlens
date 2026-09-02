@@ -254,13 +254,13 @@ export async function deriveRubricsBatch(
 }
 
 export async function evaluateAnswersBatch(
-  items: { question: Question, rubric: RubricPoint[], answerText: string, finalAnswerText?: string | null }[],
+  items: { question: Question, rubric: RubricPoint[], answerText: string, finalAnswerText?: string | null, mappingKind?: string }[],
   settings?: any
 ): Promise<Record<string, { marks: number; verdict: Verdict; rubricVerdicts: RubricVerdict[] }>> {
   if (items.length === 0) return {};
 
   const userPrompt = `Evaluate the student answers against the rubrics for the following questions.\n\n` +
-    items.map(i => `ID: ${i.question.id}\nQuestion: ${i.question.text}\nRubric: ${JSON.stringify(i.rubric)}\nStudent Answer: ${i.answerText}`).join("\n\n---\n\n");
+    items.map(i => `ID: ${i.question.id}\nIs MCQ: ${i.mappingKind === 'mcq' ? 'true' : 'false'}\nQuestion: ${i.question.text}\nRubric: ${JSON.stringify(i.rubric)}\nStudent Answer: ${i.answerText}`).join("\n\n---\n\n");
 
   let sysPrompt = P05_SYSTEM_PROMPT.replace(
     /Return JSON matching exactly this structure:[\s\S]*/,
@@ -287,6 +287,7 @@ export async function evaluateAnswersBatch(
     if (settings.allowPartial === false) mods.push("- Partial marking is disabled. DO NOT return 'partial' as a verdict, only 'met' or 'unmet'.");
     sysPrompt += "\n\nTEACHER INSTRUCTIONS:\n" + mods.join("\n");
   }
+  sysPrompt += "\n\nIf a question is marked 'Is MCQ: true', skip standard partial-credit logic. Output a strict binary Correct ('met') or Incorrect ('unmet') verdict for the rubric point(s) based solely on the selected option.";
 
   const { parsed } = await callOmniRouteJSON(sysPrompt, userPrompt);
   

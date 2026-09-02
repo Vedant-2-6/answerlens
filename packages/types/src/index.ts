@@ -40,7 +40,7 @@ export interface OcrPage {
 
 export interface VisionBlock {
   index: number;
-  kind: "answer" | "rough-work" | "label-only" | "diagram" | "page-meta" | "strike-through" | string;
+  kind: "answer" | "rough-work" | "label-only" | "diagram" | "page-meta" | "strike-through" | "mcq" | string;
   label: string | null;
   approxTopFraction: number;
   approxBottomFraction: number;
@@ -52,6 +52,7 @@ export interface VisionBlock {
 
 export interface VisionPage {
   pageIndex: number;
+  imageQuality?: "good" | "degraded" | "unusable";
   blocks: VisionBlock[];
 }
 
@@ -82,6 +83,7 @@ export type StageStatus =
 
 export interface MappingResult {
   questionId: string;
+  kind?: string;
   regions: NormRectWithPage[]; // max MAX_REGIONS = 4
   tier: "exact" | "approximate";
   confidence: number;          // 0–1, five-term weighted
