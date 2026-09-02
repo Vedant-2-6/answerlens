@@ -116,33 +116,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // Default all results to countedTowardTotal = true
-    for (const r of results) {
-      r.countedTowardTotal = true;
-    }
-
-    if (optionGroups && optionGroups.length > 0) {
-      for (const og of optionGroups) {
-        const groupResults = results.filter(r => og.memberQuestionIds.includes(r.questionId));
-        
-        // Sort by marks/maxMarks ratio descending
-        groupResults.sort((a, b) => {
-          const ratioA = a.maxMarks ? (a.marks || 0) / a.maxMarks : 0;
-          const ratioB = b.maxMarks ? (b.marks || 0) / b.maxMarks : 0;
-          return ratioB - ratioA;
-        });
-
-        // The top requiredCount are counted toward total, the rest are not
-        groupResults.forEach((r, idx) => {
-          if (idx < og.requiredCount) {
-            r.countedTowardTotal = true;
-          } else {
-            r.countedTowardTotal = false;
-          }
-        });
-      }
-    }
-
     return NextResponse.json(results);
   } catch (error: any) {
     console.error("[POST /api/grade-batch] Error:", error);

@@ -1,3 +1,4 @@
+
 "use client";
 import { useSessionStore } from "@/app/store/session";
 import { SummaryBar } from "./SummaryBar";
@@ -6,9 +7,11 @@ import { AnswerPane } from "./AnswerPane";
 import { DiagnosticsPanel } from "./DiagnosticsPanel";
 
 export function MappingScreen() {
-  const { questions, visionPages, mappings, gradings } = useSessionStore();
+  const { activeStudentId } = useSessionStore();
 
-  
+  if (!activeStudentId) {
+    return <div className="h-full flex items-center justify-center bg-surface-app">No student selected.</div>;
+  }
 
   return (
     <div className="h-full flex flex-col bg-surface-app">
@@ -29,3 +32,4 @@ export function MappingScreen() {
     </div>
   );
 }
+

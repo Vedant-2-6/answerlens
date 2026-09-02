@@ -11,7 +11,9 @@ import type { MappingResult } from "@answerlens/types";
 const MemoizedHighlightBox = memo(HighlightBox);
 
 export function AnswerPane() {
-  const { answerFile, mappings, selectedQuestionId, selectQuestion } = useSessionStore();
+  const { selectedQuestionId, selectQuestion, activeStudentId, students } = useSessionStore();
+  const student = students.find(s => s.id === activeStudentId);
+  const { visionPages = [], mappings = [], gradings = [], orphans = [], stages = {}, corrections = {} } = student || {};
   
   const [zoom, setZoom] = useState(1.0);
   const [pageIndex, setPageIndex] = useState(0);
@@ -20,11 +22,11 @@ export function AnswerPane() {
 
   // Rasterize PDF on mount
   useEffect(() => {
-    if (!answerFile) return;
-    rasterizeFile(answerFile)
+    if (!student?.answerFile) return;
+    rasterizeFile(student?.answerFile)
       .then(setPages)
       .catch(e => setError(e.message));
-  }, [answerFile]);
+  }, [student?.answerFile]);
 
   // Auto-navigate to the page containing the selected question
   useEffect(() => {
@@ -57,7 +59,7 @@ export function AnswerPane() {
     return regions;
   }, [mappings, pageIndex]);
 
-  if (!answerFile) return null;
+  if (!student?.answerFile) return null;
 
   return (
     <div className="w-full h-full flex flex-col bg-[#1e1e1e]">

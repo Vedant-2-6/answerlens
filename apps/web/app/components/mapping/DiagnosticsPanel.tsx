@@ -4,7 +4,9 @@ import { useSessionStore } from "@/app/store/session";
 
 export function DiagnosticsPanel() {
   const searchParams = useSearchParams();
-  const { stages, questions, visionPages, gradings, mappings } = useSessionStore();
+  const { questions, activeStudentId, students } = useSessionStore();
+  const student = students.find(s => s.id === activeStudentId);
+  const { visionPages = [], mappings = [], gradings = [], orphans = [], stages = {}, corrections = {} } = student || {};
 
   if (searchParams.get("debug") !== "true") {
     return null;
@@ -21,7 +23,7 @@ export function DiagnosticsPanel() {
         <section>
           <h3 className="font-semibold text-text-meta uppercase mb-2">Stage Timings</h3>
           <div className="space-y-1">
-            {Object.entries(stages).map(([k, v]) => (
+            {Object.entries(stages).map(([k, v]: [string, any]) => (
               <div key={k} className="flex justify-between border-b border-border-default py-1">
                 <span className="capitalize">{k}</span>
                 <span className="font-mono text-xs">

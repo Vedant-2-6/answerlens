@@ -55,32 +55,7 @@ export async function POST(req: Request) {
       result = await extractQuestions(pages as OcrPage[]);
     }
 
-    // Transform QuestionCandidate to Question
-    const formattedQuestions = (result.questions || []).map((cand: any, idx: number) => {
-      // Parse page index from first source line (e.g. "p1:l1" -> 0-indexed page)
-      const pageIndexMatch = cand.sourceLines?.[0]?.match(/^p(\d+):l/);
-      const pageIndex = pageIndexMatch ? parseInt(pageIndexMatch[1], 10) - 1 : 0;
-      
-      const parentId = cand.parentLabel ? `Q-${cand.parentLabel.replace(/\s+/g, '-')}` : null;
-      // Derive a safe ID
-      let id = `Q-${cand.labelRaw.replace(/[^a-zA-Z0-9]/g, '-')}`;
-      if (parentId) id = `${parentId}-${cand.labelRaw.replace(/[^a-zA-Z0-9]/g, '-')}`;
-      
-      // Handle duplicates
-      id = `${id}-${idx}`;
-
-      return {
-        id,
-        labelRaw: cand.labelRaw,
-        text: cand.text,
-        maxMarks: cand.marks,
-        pageIndex: Math.max(0, pageIndex),
-        isSubPart: cand.depth > 0,
-        parentId
-      };
-    });
-
-    return NextResponse.json({ ...result, questions: formattedQuestions });
+    return NextResponse.json(result);
 
   } catch (error: any) {
     console.error("[POST /api/extract] Error:", error);

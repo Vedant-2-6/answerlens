@@ -46,7 +46,9 @@ function FeedbackPanel({ verdicts }: { verdicts: RubricVerdict[] }) {
 }
 
 export function QuestionPane() {
-  const { questions, gradings, orphans, selectedQuestionId, selectQuestion, corrections, setCorrection } = useSessionStore();
+  const { questions, selectedQuestionId, selectQuestion, setCorrection, activeStudentId, students } = useSessionStore();
+  const student = students.find(s => s.id === activeStudentId);
+  const { visionPages = [], mappings = [], gradings = [], orphans = [], stages = {}, corrections = {} } = student || {};
 
   return (
     <div className="flex flex-col h-full bg-surface-card">

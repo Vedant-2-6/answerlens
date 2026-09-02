@@ -5,7 +5,9 @@ import { Sparkles, Pencil, Download } from "lucide-react";
 import { ChatDrawer } from "./ChatDrawer";
 
 export function SummaryBar() {
-  const { questions, gradings, paperMaxMarks, setPaperMaxMarks, corrections } = useSessionStore();
+  const { questions, paperMaxMarks, setPaperMaxMarks, activeStudentId, students } = useSessionStore();
+  const student = students.find(s => s.id === activeStudentId);
+  const { visionPages = [], mappings = [], gradings = [], orphans = [], stages = {}, corrections = {} } = student || {};
   const [chatOpen, setChatOpen] = useState(false);
   const [isEditingMax, setIsEditingMax] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -14,29 +16,54 @@ export function SummaryBar() {
   const [tempMax, setTempMax] = useState(totalMax.toString());
 
   const handleExport = () => {
-    // 1. Export CSV
+    // Class-level CSV export: one row per student, columns for each question
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Question ID,Marks,Max Marks,Verdict,Qualitative,Feedback\n";
-    gradings.forEach(g => {
-      const q = questions.find(qu => qu.id === g.questionId);
-      const label = q ? q.labelRaw : g.questionId;
-      csvContent += `"${label}","${g.marks ?? ''}","${g.maxMarks ?? ''}","${g.verdict}","${g.qualitative ?? ''}","${(g.feedback || '').replace(/"/g, '""')}"\n`;
+    
+    // Header row
+    const questionLabels = questions.map(q => q.labelRaw);
+    csvContent += ["Student", ...questionLabels, "Total Score"].map(s => `"${s}"`).join(",") + "\n";
+
+    // Data rows
+    students.forEach(s => {
+      const row = [`"${s.filename}"`];
+      let totalMarks = 0;
+      
+      questions.forEach(q => {
+        const grade = s.gradings?.find(g => g.questionId === q.id);
+        if (grade && grade.countedTowardTotal !== false) {
+          row.push(`"${grade.marks ?? ""}"`);
+          totalMarks += grade.marks || 0;
+        } else {
+          row.push(`""`);
+        }
+      });
+      
+      row.push(`"${totalMarks}"`);
+      csvContent += row.join(",") + "\n";
     });
+
     const encodedUri = encodeURI(csvContent);
     const csvLink = document.createElement("a");
     csvLink.setAttribute("href", encodedUri);
-    csvLink.setAttribute("download", `answerlens_grades_${Date.now()}.csv`);
+    csvLink.setAttribute("download", `answerlens_class_grades_${Date.now()}.csv`);
     document.body.appendChild(csvLink);
     csvLink.click();
     document.body.removeChild(csvLink);
 
     // 2. Export Corrections JSON
-    const correctionsJson = JSON.stringify(corrections, null, 2);
+    // Collect all corrections
+    const allCorrections: Record<string, any> = {};
+    students.forEach(s => {
+       if (s.corrections) {
+          allCorrections[s.filename] = s.corrections;
+       }
+    });
+    const correctionsJson = JSON.stringify(allCorrections, null, 2);
     const jsonBlob = new Blob([correctionsJson], { type: "application/json" });
     const jsonUrl = URL.createObjectURL(jsonBlob);
     const jsonLink = document.createElement("a");
     jsonLink.setAttribute("href", jsonUrl);
-    jsonLink.setAttribute("download", `answerlens_corrections_${Date.now()}.json`);
+    jsonLink.setAttribute("download", `answerlens_class_corrections_${Date.now()}.json`);
     document.body.appendChild(jsonLink);
     jsonLink.click();
     document.body.removeChild(jsonLink);
@@ -83,8 +110,16 @@ export function SummaryBar() {
       </div>
 
       <div className="flex items-center gap-4">
+        
+        <button 
+          onClick={() => useSessionStore.getState().setActiveStudent(null)}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded text-text-body hover:bg-surface-app transition-colors"
+        >
+          &larr; Back to Class
+        </button>
         <button 
           onClick={handleExport}
+
           className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded bg-white text-text-body border border-border-default shadow-sm hover:bg-surface transition-colors"
         >
           <Download size={16} />

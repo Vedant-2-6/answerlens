@@ -15,7 +15,9 @@ export function ChatDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { visionPages, gradings, questions } = useSessionStore();
+  const { questions, activeStudentId, students } = useSessionStore();
+  const student = students.find(s => s.id === activeStudentId);
+  const { visionPages = [], mappings = [], gradings = [], orphans = [], stages = {}, corrections = {} } = student || {};
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

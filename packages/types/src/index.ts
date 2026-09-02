@@ -148,25 +148,31 @@ export interface OptionGroup {
 
 export type GradingMode = "quantitative" | "qualitative";
 
-export interface Session {
-  id: string; // crypto.randomUUID()
-  questions: Question[];
-  ocrPages: {
-    question: OcrPage[];
-    answer: OcrPage[];
-  };
+export interface StudentSession {
+  id: string; // generated
+  filename: string;
+  answerFile?: any; // Note: Not persisted
+  answerPages: OcrPage[];
   visionPages: VisionPage[];
   mappings: MappingResult[];
   gradings: GradingResult[];
   orphans: OrphanRegion[];
-  paperMaxMarks: number | null;
   stages: Record<StageKind, StageStatus>;
-  mode: GradingMode; // derived once extraction completes
+  error?: string | null;
+  corrections?: Record<string, { type: 'mapping' | 'grading'; notes: string }>;
+}
+
+export interface ClassSession {
+  id: string; // crypto.randomUUID()
+  questions: Question[];
+  questionPages: OcrPage[];
+  paperMaxMarks: number | null;
+  mode: GradingMode | null; // derived once extraction completes
   createdAt: number; // Date.now()
   optionGroups?: OptionGroup[];
-  corrections?: Record<string, { type: 'mapping' | 'grading'; notes: string }>;
   estimatedGradeLevel?: string | null;
   subjectArea?: string | null;
+  students: StudentSession[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

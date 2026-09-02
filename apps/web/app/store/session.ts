@@ -1,4 +1,6 @@
+
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type {
   OcrPage,
   Question,
@@ -9,54 +11,51 @@ import type {
   StageKind,
   StageStatus,
   GradingMode,
+  StudentSession,
+  OptionGroup
 } from "@answerlens/types";
 
 interface SessionState {
-  // Upload
+  // Global class state
   questionFile: File | null;
-  answerFile: File | null;
   questionPages: OcrPage[];
-  answerPages: OcrPage[];
-  setQuestionFile: (f: File | null) => void;
-  setAnswerFile: (f: File | null) => void;
-  setQuestionPages: (p: OcrPage[]) => void;
-  setAnswerPages: (p: OcrPage[]) => void;
-
-  // Pipeline results
   questions: Question[];
-  visionPages: VisionPage[];
-  mappings: MappingResult[];
-  gradings: GradingResult[];
-  orphans: OrphanRegion[];
   paperMaxMarks: number | null;
   mode: GradingMode | null;
-  corrections: Record<string, { type: 'mapping' | 'grading'; notes: string }>;
-  setCorrection: (qid: string, correction: { type: 'mapping' | 'grading'; notes: string } | null) => void;
+  optionGroups?: OptionGroup[];
+  estimatedGradeLevel: string | null;
+  subjectArea: string | null;
+  globalExtractionStage: StageStatus;
 
-  // Stage tracking
-  stages: Record<StageKind, StageStatus>;
-  setStage: (stage: StageKind, status: StageStatus) => void;
+  // Setters for global
+  setQuestionFile: (f: File | null) => void;
+  setQuestionPages: (p: OcrPage[]) => void;
+  setQuestions: (q: Question[]) => void;
+  setPaperMaxMarks: (n: number | null) => void;
+  setMode: (m: GradingMode) => void;
+  setOptionGroups: (og: OptionGroup[]) => void;
+  setEstimatedGradeLevel: (g: string | null) => void;
+  setSubjectArea: (s: string | null) => void;
+  setGlobalExtractionStage: (status: StageStatus) => void;
 
-  // UI
-  selectedQuestionId: string | null;
-  selectQuestion: (id: string | null) => void;
+  // Array of students
+  students: StudentSession[];
+  
+  // UI selection
+  activeStudentId: string | null;
+  setActiveStudent: (id: string | null) => void;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (v: boolean) => void;
 
-  // Pipeline setters
-  setQuestions: (q: Question[]) => void;
-  setVisionPages: (v: VisionPage[]) => void;
-  addMapping: (m: MappingResult) => void;
-  setMappings: (m: MappingResult[]) => void;
-  addGrading: (g: GradingResult) => void;
-  setGradings: (g: GradingResult[]) => void;
-  setPaperMaxMarks: (n: number | null) => void;
-  setOrphans: (o: OrphanRegion[]) => void;
-  setMode: (m: GradingMode) => void;
-  estimatedGradeLevel: string | null;
-  subjectArea: string | null;
-  setEstimatedGradeLevel: (g: string | null) => void;
-  setSubjectArea: (s: string | null) => void;
+  // Per-student setters
+  addStudent: (s: StudentSession) => void;
+  updateStudent: (id: string, partial: Partial<StudentSession>) => void;
+  removeStudent: (id: string) => void;
+
+  // Current student interactions (MappingScreen)
+  selectedQuestionId: string | null;
+  selectQuestion: (id: string | null) => void;
+  setCorrection: (qid: string, correction: { type: "mapping" | "grading"; notes: string } | null) => void;
 
   // Reset
   reset: () => void;
@@ -70,82 +69,84 @@ const initialStages: Record<StageKind, StageStatus> = {
   grading:    { kind: "idle" },
 };
 
-import { persist, createJSONStorage } from "zustand/middleware";
-
 export const useSessionStore = create<SessionState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       questionFile: null,
-      answerFile: null,
-      paperMaxMarks: null,
       questionPages: [],
-      answerPages: [],
-      setQuestionFile: (f) => set({ questionFile: f }),
-      setAnswerFile: (f) => set({ answerFile: f }),
-      setQuestionPages: (p) => set({ questionPages: p }),
-      setAnswerPages: (p) => set({ answerPages: p }),
-
       questions: [],
-      visionPages: [],
-      mappings: [],
-      gradings: [],
-      orphans: [],
+      paperMaxMarks: null,
       mode: null,
-      corrections: {},
-      setCorrection: (qid, correction) => set((s) => {
-        const next = { ...s.corrections };
+      optionGroups: [],
+      estimatedGradeLevel: null,
+      subjectArea: null,
+      globalExtractionStage: { kind: "idle" },
+
+      setQuestionFile: (f) => set({ questionFile: f }),
+      setQuestionPages: (p) => set({ questionPages: p }),
+      setQuestions: (q) => set({ questions: q }),
+      setPaperMaxMarks: (n) => set({ paperMaxMarks: n }),
+      setMode: (m) => set({ mode: m }),
+      setOptionGroups: (og) => set({ optionGroups: og }),
+      setEstimatedGradeLevel: (g) => set({ estimatedGradeLevel: g }),
+      setSubjectArea: (s) => set({ subjectArea: s }),
+      setGlobalExtractionStage: (status) => set({ globalExtractionStage: status }),
+
+      students: [],
+      activeStudentId: null,
+      setActiveStudent: (id) => set({ activeStudentId: id }),
+      sidebarCollapsed: false,
+      setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
+
+      addStudent: (student) => set((state) => ({ students: [...state.students, student] })),
+      updateStudent: (id, partial) => set((state) => ({
+        students: state.students.map(s => s.id === id ? { ...s, ...partial } : s)
+      })),
+      removeStudent: (id) => set((state) => ({
+        students: state.students.filter(s => s.id !== id),
+        activeStudentId: state.activeStudentId === id ? null : state.activeStudentId
+      })),
+
+      selectedQuestionId: null,
+      selectQuestion: (id) => set({ selectedQuestionId: id }),
+      setCorrection: (qid, correction) => set((state) => {
+        const student = state.students.find(s => s.id === state.activeStudentId);
+        if (!student) return state;
+        const next = { ...(student.corrections || {}) };
         if (correction) {
           next[qid] = correction;
         } else {
           delete next[qid];
         }
-        return { corrections: next };
+        return {
+          students: state.students.map(s => s.id === student.id ? { ...s, corrections: next } : s)
+        };
       }),
-      estimatedGradeLevel: null,
-      subjectArea: null,
-      setEstimatedGradeLevel: (g) => set({ estimatedGradeLevel: g }),
-      setSubjectArea: (s) => set({ subjectArea: s }),
-
-      stages: initialStages,
-      setStage: (stage, status) =>
-        set((s) => ({ stages: { ...s.stages, [stage]: status } })),
-
-      selectedQuestionId: null,
-      selectQuestion: (id) => set({ selectedQuestionId: id }),
-      sidebarCollapsed: false,
-      setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
-
-      setQuestions: (q) => set({ questions: q }),
-      setVisionPages: (v) => set({ visionPages: v }),
-      // For performance in rapid loops, we avoid O(N^2) spread by using push on a slice, though we still need to return a new array reference
-      addMapping: (m) => set((s) => { const next = s.mappings.slice(); next.push(m); return { mappings: next }; }),
-      setMappings: (m) => set({ mappings: m }),
-      addGrading: (g) => set((s) => { const next = s.gradings.slice(); next.push(g); return { gradings: next }; }),
-      setGradings: (g) => set({ gradings: g }),
-      setPaperMaxMarks: (n) => set({ paperMaxMarks: n }),
-      setOrphans: (o) => set({ orphans: o }),
-      setMode: (m) => set({ mode: m }),
 
       reset: () =>
         set({
-          questionFile: null, answerFile: null,
-          questionPages: [], answerPages: [],
-          questions: [], visionPages: [], mappings: [],
-          gradings: [], orphans: [], paperMaxMarks: null, mode: null,
-          corrections: {},
+          questionFile: null,
+          questionPages: [],
+          questions: [],
+          paperMaxMarks: null,
+          mode: null,
+          optionGroups: [],
           estimatedGradeLevel: null,
           subjectArea: null,
-          stages: initialStages,
-          selectedQuestionId: null,
+          globalExtractionStage: { kind: "idle" },
+          students: [],
+          activeStudentId: null,
           sidebarCollapsed: false,
+          selectedQuestionId: null,
         }),
     }),
     {
-      name: "answerlens-session",
-      storage: createJSONStorage(() => sessionStorage), // Use sessionStorage so it survives soft refreshes but clears on new tabs
+      name: "answerlens-class-session",
+      storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => Object.fromEntries(
-        Object.entries(state).filter(([key]) => !['questionFile', 'answerFile'].includes(key))
-      ),
+        Object.entries(state).filter(([key]) => !["questionFile"].includes(key))
+      ) as any,
     }
   )
 );
+
