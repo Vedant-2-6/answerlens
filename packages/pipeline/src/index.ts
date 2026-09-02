@@ -54,12 +54,41 @@ export class PipelineOrchestrator {
     return results;
   }
 
+  // Cache to avoid re-running identical API calls (e.g. grading chunks on retry)
+  private static responseCache = new Map<string, any>();
+
+  private async hashPayload(payload: string): Promise<string> {
+    if (typeof crypto === "undefined" || !crypto.subtle) {
+      // Fallback for non-browser/unsupported environments
+      let hash = 0;
+      for (let i = 0; i < payload.length; i++) {
+        hash = ((hash << 5) - hash) + payload.charCodeAt(i);
+        hash = hash & hash; 
+      }
+      return hash.toString();
+    }
+    const encoder = new TextEncoder();
+    const data = encoder.encode(payload);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
   private async callApi(route: string, body: unknown): Promise<any> {
+    const payloadString = JSON.stringify(body);
+    const hash = await this.hashPayload(`${route}:${payloadString}`);
+    
+    if (PipelineOrchestrator.responseCache.has(hash)) {
+      console.log(`[Pipeline] Cache hit for ${route}`);
+      return PipelineOrchestrator.responseCache.get(hash);
+    }
+
     const res = await fetch(route, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: payloadString,
     });
+    
     if (!res.ok) {
       let text = res.statusText;
       try {
@@ -68,7 +97,10 @@ export class PipelineOrchestrator {
       } catch (e) {}
       throw new Error(`[${route}] ${res.status}: ${text}`);
     }
-    return res.json();
+    
+    const jsonRes = await res.json();
+    PipelineOrchestrator.responseCache.set(hash, jsonRes);
+    return jsonRes;
   }
 
   async runGlobalExtraction(questionFile: File) {
